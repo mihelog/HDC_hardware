@@ -1,0 +1,65 @@
+X-Ray Dataset Analysis
+=====================
+
+This dataset contains ptychography X-ray imaging data with multiple samples and reconstruction results.
+
+This dataset is from the following publications/references:
+https://github.com/dnoonan08/InPixelAI/blob/main/PCA_Style_Training.ipynb
+https://arch.library.northwestern.edu/concern/generic_works/h702q681b?locale=en
+The images on these datasets are unlabelled. This repository contains a python script with an autoencoder that extracts features and assigns labels.
+
+Dataset Structure:
+-----------------
+The dataset is organized into sample directories (camera_man, cell, mandrill, etc.), each containing:
+- Two .h5 files: regular and reference ("_ref" suffix)
+- phantom/ subdirectory with sample properties
+- n2e7/ (and n7e7/) subdirectories with reconstruction results
+
+H5 Files:
+---------
+Each directory contains paired .h5 files with the following characteristics:
+- Data structure: 'exchange/data' with shape (1, 4488, 72, 72)
+- Data type: complex64 (magnitude and phase information)
+- Regular files: Actual ptychography diffraction measurements
+- Reference files: Baseline/calibration data (mostly zeros or different conditions)
+- The files are NOT identical - they contain different measurement data
+
+The dimensions represent:
+- 1: Single measurement series
+- 4488: Number of probe positions (66 x 68 grid with some positions)
+- 72 x 72: Detector pixel array for each diffraction pattern
+
+Numpy Files:
+-----------
+Two types of subdirectories contain different numpy arrays:
+
+1. phantom/ directory:
+   - grid_beta.npy: Absorption coefficient map (325 x 325 x 1)
+   - grid_delta.npy: Refractive index decrement map (325 x 325 x 1)
+   These represent the ground truth optical properties of the sample
+
+2. n2e7/ (reconstruction results) directory:
+   - obj_checkpoint.npy: Reconstructed object properties (325 x 325 x 1 x 2)
+   - opt_params_checkpoint.npy: Optimization parameters (2 x 325 x 325 x 1 x 2)
+   - Various .tiff files: Visualization outputs (beta, delta, probe magnitude/phase)
+   - convergence/: Training loss data
+   - Text files: Configuration and summary information
+
+Sample Information:
+------------------
+Based on info.txt files:
+- Probe size: 72 x 72 pixels
+- Sample size: 325 x 325 pixels  
+- Probe positions: ~4488 total positions in scanning grid
+- Step size: 5 pixels between probe positions
+- Energy: 5000 eV X-rays
+- Pixel size: 1e-07 cm
+
+Purpose:
+--------
+This is a ptychography reconstruction dataset where:
+1. X-ray diffraction patterns were measured at multiple probe positions
+2. Iterative algorithms were used to reconstruct the sample's optical properties
+3. Results are compared against known phantom properties for validation
+
+The dataset supports research in computational X-ray imaging and phase retrieval algorithms.

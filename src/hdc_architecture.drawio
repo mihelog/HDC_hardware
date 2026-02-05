@@ -1,0 +1,212 @@
+<mxfile host="app.diagrams.net" modified="2024-01-24T00:00:00.000Z" agent="Claude" etag="HDC-Manufacturing" version="21.6.5" type="device">
+  <diagram name="HDC-Manufacturing-Architecture" id="hdc-arch-mfg">
+    <mxGraphModel dx="1422" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <!-- Title -->
+        <mxCell id="title" value="HDC Image Classifier Architecture (Manufacturing Dataset)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=20;fontStyle=1;fontColor=#1565c0" vertex="1" parent="1">
+          <mxGeometry x="400" y="10" width="600" height="30" as="geometry"/>
+        </mxCell>
+
+        <!-- Status Badge -->
+        <mxCell id="status" value="✅ Verified: Verilog 98% | Python 96.3%" style="text;html=1;strokeColor=#4caf50;fillColor=#e8f5e9;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=1;fontSize=12;fontStyle=1;fontColor=#2e7d32" vertex="1" parent="1">
+          <mxGeometry x="550" y="45" width="300" height="25" as="geometry"/>
+        </mxCell>
+
+        <!-- Configuration Box -->
+        <mxCell id="config-box" value="Configuration&#xa;• 2-class binary classification&#xa;• 32×32 grayscale images&#xa;• HV_DIM = 5000&#xa;• 3-bit projection weights&#xa;• Deterministic training (seed=42)&#xa;• NO normalization (disabled)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff9c4;strokeColor=#f57f17;fontSize=11;align=left;verticalAlign=top;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="50" y="90" width="250" height="140" as="geometry"/>
+        </mxCell>
+
+        <!-- Input Image -->
+        <mxCell id="input" value="Input Image&#xa;32×32×1&#xa;8-bit grayscale" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1f5fe;strokeColor=#0277bd;fontSize=13;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="380" y="100" width="120" height="70" as="geometry"/>
+        </mxCell>
+
+        <!-- CNN Frontend Section -->
+        <mxCell id="cnn-section" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3e5f5;strokeColor=#7b1fa2;dashed=1;opacity=30" vertex="1" parent="1">
+          <mxGeometry x="370" y="200" width="560" height="150" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="cnn-title" value="CNN Feature Extraction (Deterministic QAT)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=16;fontStyle=1;fontColor=#6a1b9a" vertex="1" parent="1">
+          <mxGeometry x="500" y="205" width="300" height="25" as="geometry"/>
+        </mxCell>
+
+        <!-- Conv1 -->
+        <mxCell id="conv1" value="Conv1 Stage&#xa;1→8 channels&#xa;3×3 kernel&#xa;ReLU&#xa;Pool 2×2" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3e5f5;strokeColor=#7b1fa2;fontSize=11;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="380" y="240" width="110" height="90" as="geometry"/>
+        </mxCell>
+
+        <!-- Conv2 -->
+        <mxCell id="conv2" value="Conv2 Stage&#xa;8→16 channels&#xa;3×3 kernel&#xa;ReLU&#xa;Pool 2×2" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3e5f5;strokeColor=#7b1fa2;fontSize=11;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="520" y="240" width="110" height="90" as="geometry"/>
+        </mxCell>
+
+        <!-- FC Layer -->
+        <mxCell id="fc" value="FC Stage&#xa;1024 → 128&#xa;No activation&#xa;(Hardware match)&#xa;FC_SHIFT=7" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3e5f5;strokeColor=#7b1fa2;fontSize=11;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="660" y="240" width="110" height="90" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="qat-note" value="QAT: Starts epoch 37/75&#xa;Fixed-point quantization" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=9;fontColor=#6a1b9a;fontStyle=2" vertex="1" parent="1">
+          <mxGeometry x="800" y="245" width="120" height="30" as="geometry"/>
+        </mxCell>
+
+        <!-- Dimension labels for CNN -->
+        <mxCell id="dim-input" value="32×32×1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=9;fontColor=#666" vertex="1" parent="1">
+          <mxGeometry x="405" y="335" width="60" height="15" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="dim-conv1" value="16×16×8" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=9;fontColor=#666" vertex="1" parent="1">
+          <mxGeometry x="410" y="335" width="60" height="15" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="dim-conv2" value="8×8×16" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=9;fontColor=#666" vertex="1" parent="1">
+          <mxGeometry x="545" y="335" width="60" height="15" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="dim-fc" value="128 features" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=9;fontColor=#666" vertex="1" parent="1">
+          <mxGeometry x="675" y="335" width="80" height="15" as="geometry"/>
+        </mxCell>
+
+        <!-- HDC Processing Section -->
+        <mxCell id="hdc-section" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f5e9;strokeColor=#388e3c;dashed=1;opacity=30" vertex="1" parent="1">
+          <mxGeometry x="370" y="380" width="560" height="270" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="hdc-title" value="HDC Processing (Raw Features, NO Normalization)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=16;fontStyle=1;fontColor=#2e7d32" vertex="1" parent="1">
+          <mxGeometry x="470" y="385" width="400" height="25" as="geometry"/>
+        </mxCell>
+
+        <!-- NO Normalization Warning -->
+        <mxCell id="no-norm" value="❌ Normalization DISABLED&#xa;(Hurts accuracy: 96.3% → 81.9%)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffebee;strokeColor=#c62828;fontSize=11;fontStyle=1;fontColor=#c62828" vertex="1" parent="1">
+          <mxGeometry x="390" y="420" width="200" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- Encoding -->
+        <mxCell id="encoding" value="Percentile Encoding&#xa;Class-aware threshold&#xa;Threshold = 0&#xa;Class 0: median +1194&#xa;Class 1: median -2550&#xa;→ 256 binary features" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f5e9;strokeColor=#388e3c;fontSize=10;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="620" y="420" width="160" height="95" as="geometry"/>
+        </mxCell>
+
+        <!-- Projection -->
+        <mxCell id="projection" value="Projection Stage&#xa;Random Matrix&#xa;256 × 5000&#xa;3-bit weights:&#xa;{-4,-3,-2,-1,0,1,2,3}" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff3e0;strokeColor=#f57c00;fontSize=10;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="390" y="490" width="160" height="90" as="geometry"/>
+        </mxCell>
+
+        <!-- Query HV -->
+        <mxCell id="query-hv" value="Query Hypervector&#xa;5000-dim binary&#xa;~50% sparsity&#xa;(Hamming-friendly)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff3e0;strokeColor=#f57c00;fontSize=11;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="620" y="535" width="160" height="70" as="geometry"/>
+        </mxCell>
+
+        <!-- Classification Section -->
+        <mxCell id="class-section" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fce4ec;strokeColor=#c2185b;dashed=1;opacity=30" vertex="1" parent="1">
+          <mxGeometry x="370" y="680" width="560" height="150" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="class-title" value="Classification &amp; Distance Computation" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=16;fontStyle=1;fontColor=#880e4f" vertex="1" parent="1">
+          <mxGeometry x="500" y="685" width="320" height="25" as="geometry"/>
+        </mxCell>
+
+        <!-- Class HVs -->
+        <mxCell id="class-hvs" value="Class Hypervectors&#xa;2 classes × 5000-dim&#xa;Pre-trained (8000 samples)&#xa;Sparsity: ~49% both classes&#xa;Balanced encoding" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fce4ec;strokeColor=#c2185b;fontSize=10;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="390" y="720" width="180" height="90" as="geometry"/>
+        </mxCell>
+
+        <!-- Hamming Distance -->
+        <mxCell id="hamming" value="Hamming Distance&#xa;XOR + Popcount&#xa;vs 2 class HVs&#xa;Hardware: ~200 cycles" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fce4ec;strokeColor=#c2185b;fontSize=10;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="600" y="720" width="150" height="80" as="geometry"/>
+        </mxCell>
+
+        <!-- Argmin -->
+        <mxCell id="argmin" value="Classification&#xa;Argmin(distances)&#xa;+ Confidence LUT&#xa;Output: 0 or 1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e3f2fd;strokeColor=#1976d2;fontSize=11;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="780" y="720" width="130" height="80" as="geometry"/>
+        </mxCell>
+
+        <!-- Performance metrics box -->
+        <mxCell id="perf-box" value="Performance Metrics&#xa;• Latency: 2,444 cycles/image&#xa;• Memory: 3.01 Mbits&#xa;• Throughput: 200-400 img/s @ 500MHz&#xa;• Verilog accuracy: 98.0%&#xa;• Python accuracy: 96.3%&#xa;• Agreement: 88% (12% quant. rounding)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8eaf6;strokeColor=#3f51b5;fontSize=10;align=left;verticalAlign=top;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="1050" y="90" width="300" height="140" as="geometry"/>
+        </mxCell>
+
+        <!-- Critical findings box -->
+        <mxCell id="findings-box" value="Critical Findings&#xa;✅ Deterministic training essential&#xa;✅ 3-bit projection (8 values)&#xa;✅ Class-aware threshold=0&#xa;✅ Fixed-point > floating-point&#xa;❌ Normalization hurts (-14%)&#xa;• PyTorch seeds required&#xa;• QAT @ epoch 37 critical" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff3e0;strokeColor=#f57c00;fontSize=10;align=left;verticalAlign=top;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="1050" y="250" width="300" height="160" as="geometry"/>
+        </mxCell>
+
+        <!-- Training info box -->
+        <mxCell id="training-box" value="Training Details&#xa;• Dataset: Manufacturing (HDF5)&#xa;• Samples: 8000 (4000/class)&#xa;• Epochs: 75 (QAT starts @ 37)&#xa;• Batch size: 64&#xa;• Learning rate: 0.001 + cosine&#xa;• Optimizer: Adam (wd=1e-5)&#xa;• Deterministic: torch.manual_seed(42)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3e5f5;strokeColor=#7b1fa2;fontSize=10;align=left;verticalAlign=top;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="1050" y="430" width="300" height="160" as="geometry"/>
+        </mxCell>
+
+        <!-- Verilog modules box -->
+        <mxCell id="verilog-box" value="Verilog Modules (11 stages)&#xa;• conv1_stage, pool1_stage&#xa;• conv2_stage, pool2_stage&#xa;• fc_stage&#xa;• hdc_encoding_stage&#xa;• projection_stage&#xa;• query_gen_stage&#xa;• hamming_distance_stage&#xa;• classification_stage&#xa;• online_learning_module" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1f5fe;strokeColor=#0277bd;fontSize=10;align=left;verticalAlign=top;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="1050" y="610" width="300" height="180" as="geometry"/>
+        </mxCell>
+
+        <!-- Arrows -->
+        <mxCell id="arrow1" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;strokeColor=#0277bd" edge="1" parent="1" source="input" target="conv1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="arrow2" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;strokeColor=#7b1fa2" edge="1" parent="1" source="conv1" target="conv2">
+          <mxGeometry width="50" height="50" relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="arrow3" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;strokeColor=#7b1fa2" edge="1" parent="1" source="conv2" target="fc">
+          <mxGeometry width="50" height="50" relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="arrow4" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;strokeColor=#7b1fa2" edge="1" parent="1" source="fc" target="encoding">
+          <mxGeometry width="50" height="50" relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="arrow5" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;strokeColor=#388e3c" edge="1" parent="1" source="encoding" target="projection">
+          <mxGeometry width="50" height="50" relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="arrow6" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;strokeColor=#f57c00" edge="1" parent="1" source="projection" target="query-hv">
+          <mxGeometry width="50" height="50" relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="arrow7" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;strokeColor=#f57c00" edge="1" parent="1" source="query-hv" target="hamming">
+          <mxGeometry width="50" height="50" relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="arrow8" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;strokeColor=#c2185b" edge="1" parent="1" source="class-hvs" target="hamming">
+          <mxGeometry width="50" height="50" relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="arrow9" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;strokeColor=#c2185b" edge="1" parent="1" source="hamming" target="argmin">
+          <mxGeometry width="50" height="50" relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Legend -->
+        <mxCell id="legend-title" value="Legend:" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="50" y="680" width="60" height="20" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="legend-cnn" value="CNN Stages" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3e5f5;strokeColor=#7b1fa2;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="50" y="705" width="100" height="30" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="legend-hdc" value="HDC Encoding" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f5e9;strokeColor=#388e3c;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="160" y="705" width="100" height="30" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="legend-proj" value="Projection" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff3e0;strokeColor=#f57c00;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="50" y="745" width="100" height="30" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="legend-class" value="Classification" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fce4ec;strokeColor=#c2185b;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="160" y="745" width="100" height="30" as="geometry"/>
+        </mxCell>
+
+        <!-- Footer -->
+        <mxCell id="footer" value="Updated: 2024-01-24 | Manufacturing Dataset Configuration | Production-Ready System" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;fontColor=#666;fontStyle=2" vertex="1" parent="1">
+          <mxGeometry x="450" y="860" width="500" height="20" as="geometry"/>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
