@@ -8,7 +8,7 @@
 //   and provides standardized I/O naming conventions suitable for system integration.
 //
 // PURPOSE:
-//   - System integration wrapper for VIAS (Versatile Image Analysis System)
+//   - System integration wrapper for a top-level module (Versatile Image Analysis System)
 //   - Provides standardized signal naming (pix_in, conf_in, etc.)
 //   - Maps between top-level conventions and hdc_classifier interface
 //   - Reserved interfaces for future features (scan chain, status registers)

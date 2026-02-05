@@ -1,4 +1,4 @@
-# VIAS HDC: Hardware-Accelerated Image Classification using Hyperdimensional Computing
+# HDC: Hardware-Accelerated Image Classification using Hyperdimensional Computing
 
 **Status**: ✅ Production-Ready | **Latest Update**: January 2024
 
@@ -144,7 +144,7 @@ The system also supports QuickDraw (10-class sketch recognition), MNIST (10-clas
 ## Directory Structure
 
 ```
-vias_hdc/
+root/
 ├── README.md                    # This file
 ├── src/			 # Main HDC classifier implementation
 │   ├── hdc_classifier.v     # Verilog RTL (modular, ~6000 lines)

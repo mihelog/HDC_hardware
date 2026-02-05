@@ -2896,7 +2896,7 @@ make --version         # Should be 4.0+
 
 # Clone repository (if not already done)
 git clone <repository-url>
-cd vias_hdc/src
+cd <root>/src
 
 # Test installation
 make manufacturing_quick
