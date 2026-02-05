@@ -344,8 +344,8 @@ class SimpleCNN(nn.Module):
             
             # Determine bit width for this layer to calculate ideal scale
             if layer_name == 'fc':
-                layer_bit_width = 8        # 8-bit for FC weights (±128) - 70KB, better accuracy (2026-02-04)
-                layer_bias_bit_width = 8   # 8-bit for FC biases (±128) - precision (2026-02-03)
+                layer_bit_width = getattr(self, 'fc_weight_width', 8)  # FC weight width (default 8-bit)
+                layer_bias_bit_width = 8   # FC bias width fixed at 8-bit for precision
             elif layer_name == 'conv1':
                 layer_bit_width = 12
                 layer_bias_bit_width = 12  # Same for conv layers
@@ -557,11 +557,12 @@ class SimpleCNN(nn.Module):
             self.conv2.weight.data = self.conv2.int_weight.float() / conv2_w_scale
             self.conv2.bias.data = self.conv2.int_bias.float() / conv2_b_scale
         
-        # FC layer: 8-bit weights, 8-bit biases (2026-02-04: 70KB target for better accuracy)
+        # FC layer: parameterized weight width, 8-bit biases
         fc_w_scale = self.quant_scales['fc']['weight_scale']
         fc_b_scale = self.quant_scales['fc']['bias_scale']
-        fc_weight_clamp_max = 127    # 8-bit signed weights
-        fc_weight_clamp_min = -128   # 8-bit signed weights
+        fc_weight_width = getattr(self, 'fc_weight_width', 8)
+        fc_weight_clamp_max = (1 << (fc_weight_width - 1)) - 1
+        fc_weight_clamp_min = -(1 << (fc_weight_width - 1))
         fc_bias_clamp_max = 127      # 8-bit signed biases (keep precision)
         fc_bias_clamp_min = -128     # 8-bit signed biases (keep precision)
         # Store integer weights FIRST (before modifying weight.data)
@@ -3803,7 +3804,7 @@ def detect_pixel_width(test_images):
 #   test_images: Optional test images for pixel width detection.
 #   proj_weight_width: Bit width for projection weights.
 #   random_seed: Random seed for reproducibility.
-def save_for_verilog(cnn, hdc, image_size, num_classes, hv_dim, in_channels=1, pixel_width=None, shift_params=None, fixed_point_mode=False, normalization_enabled=False, test_images=None, proj_weight_width=4, random_seed=42, use_lfsr_projection=False):
+def save_for_verilog(cnn, hdc, image_size, num_classes, hv_dim, in_channels=1, pixel_width=None, shift_params=None, fixed_point_mode=False, normalization_enabled=False, test_images=None, proj_weight_width=4, fc_weight_width=8, random_seed=42, use_lfsr_projection=False):
     """Save weights, projection matrix, and hypervectors in format for Verilog testbench
 
     Args:
@@ -3835,7 +3836,7 @@ def save_for_verilog(cnn, hdc, image_size, num_classes, hv_dim, in_channels=1, p
         # Original quantized mode
         CONV1_WEIGHT_WIDTH = 12  # 12-bit for Conv1 (±2048)
         CONV2_WEIGHT_WIDTH = 10  # 10-bit for Conv2 (±512)
-        FC_WEIGHT_WIDTH = 8      # 8-bit for FC weights (±128) - 70KB, better accuracy (2026-02-04)
+        FC_WEIGHT_WIDTH = fc_weight_width  # FC weight width (default 8-bit)
         FC_BIAS_WIDTH = 8        # 8-bit for FC biases (±128) - precision (2026-02-03)
     
     # Use provided shift parameters or defaults
@@ -3886,14 +3887,14 @@ def save_for_verilog(cnn, hdc, image_size, num_classes, hv_dim, in_channels=1, p
         f.write(f"parameter real FC_WEIGHT_SCALE = {fc_w_scale};\n")
         f.write(f"parameter real FC_BIAS_SCALE = {fc_b_scale};\n")
     
-    # Generate weight width parameters file
+    # Generate weight width parameters file (macros for testbench use)
     with open('verilog_params/weight_widths.vh', 'w') as f:
         f.write("// Auto-generated weight width parameters\n")
         f.write("// These define the bit widths used during quantization\n")
-        f.write(f"parameter CONV1_WEIGHT_WIDTH = {CONV1_WEIGHT_WIDTH};\n")
-        f.write(f"parameter CONV2_WEIGHT_WIDTH = {CONV2_WEIGHT_WIDTH};\n")
-        f.write(f"parameter FC_WEIGHT_WIDTH = {FC_WEIGHT_WIDTH};\n")
-        f.write(f"parameter FC_BIAS_WIDTH = 8;  // FC bias uses 8-bit for precision (2026-02-03)\n")
+        f.write(f"`define CONV1_WEIGHT_WIDTH_VH {CONV1_WEIGHT_WIDTH}\n")
+        f.write(f"`define CONV2_WEIGHT_WIDTH_VH {CONV2_WEIGHT_WIDTH}\n")
+        f.write(f"`define FC_WEIGHT_WIDTH_VH {FC_WEIGHT_WIDTH}\n")
+        f.write("`define FC_BIAS_WIDTH_VH 8  // FC bias uses 8-bit for precision (2026-02-03)\n")
 
     with open('weights_and_hvs.txt', 'w') as f:
         # Write parameters including bit width information
@@ -4266,7 +4267,7 @@ def save_for_verilog(cnn, hdc, image_size, num_classes, hv_dim, in_channels=1, p
                 fc_weights_padded = torch.zeros(num_fc_outputs, 1024)
                 fc_weights_padded[:, :cnn.fc.weight.shape[1]] = cnn.fc.weight
                 write_weights(fc_weights_padded, "FC weights (padded to 1024)", scale=fc_w_scale, weight_width=FC_WEIGHT_WIDTH)
-                write_weights(cnn.fc.bias, "FC bias", scale=fc_b_scale, weight_width=FC_WEIGHT_WIDTH)
+                write_weights(cnn.fc.bias, "FC bias", scale=fc_b_scale, weight_width=FC_BIAS_WIDTH)
             
             # Note: Scale information moved to verilog_params/scales.vh file
             
@@ -4685,12 +4686,14 @@ def load_verilog_params(params_dir='verilog_params'):
     try:
         with open(width_file, 'r') as f:
             for line in f:
-                if 'CONV1_WEIGHT_WIDTH' in line and '`define' in line:
+                if 'CONV1_WEIGHT_WIDTH_VH' in line and '`define' in line:
                     params['conv1_weight_width'] = int(line.split()[-1])
-                elif 'CONV2_WEIGHT_WIDTH' in line and '`define' in line:
+                elif 'CONV2_WEIGHT_WIDTH_VH' in line and '`define' in line:
                     params['conv2_weight_width'] = int(line.split()[-1])
-                elif 'FC_WEIGHT_WIDTH' in line and '`define' in line:
+                elif 'FC_WEIGHT_WIDTH_VH' in line and '`define' in line:
                     params['fc_weight_width'] = int(line.split()[-1])
+                elif 'FC_BIAS_WIDTH_VH' in line and '`define' in line:
+                    params['fc_bias_width'] = int(line.split()[-1])
         print(f"Loaded weight width parameters from {width_file}")
     except FileNotFoundError:
         print(f"Warning: {width_file} not found")
@@ -5215,7 +5218,7 @@ def train_system(dataset_name='quickdraw', num_classes=2, image_size=32,
                  enable_online_learning=True, use_per_feature_thresholds=True,
                  unlabeled=False, data_dirs=None, num_clusters=10, quantize_bits=8,
                  proj_weight_width=4, random_seed=42, num_test_images=200,
-                 qat_fuse_bn=False, num_features=64,
+                 qat_fuse_bn=False, num_features=64, fc_weight_width=8,
                  debug_pipeline=False, debug_samples=2):
     """
     Train the complete HDC system (CNN + HDC classifier).
@@ -5440,6 +5443,8 @@ def train_system(dataset_name='quickdraw', num_classes=2, image_size=32,
 
     # Create CNN with dynamic input size and channels
     cnn = SimpleCNN(num_features=num_features, input_size=image_size, in_channels=in_channels).to(device)
+    cnn.fc_weight_width = fc_weight_width
+    print(f"FC weight width (config): {fc_weight_width} bits")
 
     # Create a temporary classifier head for CNN training
     classifier_head = nn.Linear(num_features, num_classes).to(device)
@@ -6595,6 +6600,7 @@ def train_system(dataset_name='quickdraw', num_classes=2, image_size=32,
                      normalization_enabled=normalization_enabled,
                      test_images=test_images_for_detection,
                      proj_weight_width=proj_weight_width,
+                     fc_weight_width=fc_weight_width,
                      random_seed=random_seed,
                      use_lfsr_projection=getattr(hdc, 'use_lfsr', False))
 
@@ -6728,6 +6734,8 @@ For more information, see README.md or how_to_run.txt
                        help='Number of CNN output features (FC layer outputs). Default: 64. '
                             'Higher values (128, 256) improve accuracy but significantly increase memory (FC layer dominates). '
                             'Reduced from 128 to 64 for 50%% memory reduction (2026-02-02)')
+    parser.add_argument('--fc_weight_width', type=int, default=8,
+                       help='FC weight bit-width (4-16). Default: 8. Lower values reduce memory but may reduce accuracy.')
 
     # HDC parameters
     parser.add_argument('--hv_dim', type=int, default=5000,
@@ -6847,6 +6855,7 @@ For more information, see README.md or how_to_run.txt
         num_test_images=args.num_test_images,
         qat_fuse_bn=args.qat_fuse_bn,
         num_features=args.num_features,
+        fc_weight_width=args.fc_weight_width,
         debug_pipeline=args.debug_pipeline,
         debug_samples=args.debug_samples
     )

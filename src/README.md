@@ -20,6 +20,7 @@ This directory contains the complete implementation of a hardware-accelerated Hy
 - **Run command**: `make manufacturing USE_LFSR_PROJECTION=1`
 - **Parameters**: NUM_FEATURES=64, HV_DIM=5000, ENCODING_LEVELS=4
 - **FC Quantization**: **8-bit weights (±128)**, 8-bit biases (±128)
+- **FC Width Override**: Pass `FC_WEIGHT_WIDTH=<bits>` to Make (e.g., `FC_WEIGHT_WIDTH=6`) to reduce FC memory; Python now logs the active width.
 - **Expected Memory**: **~70 KB** (up from 38 KB with 4-bit weights)
 - **Observed Accuracy**: **96.5%** on saved 200-image Verilog test set
 - **Per-class (saved 200 images)**: Class 0 = 97%, Class 1 = 96%

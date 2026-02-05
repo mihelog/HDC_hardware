@@ -90,9 +90,14 @@ parameter HDC_HV_DIM = `ifdef HV_DIM_ARG `HV_DIM_ARG `else 5000 `endif;
                                                   // Hypervector dimension (default: 5000)
 parameter HDC_PROJ_WEIGHT_WIDTH = `ifdef PROJ_WEIGHT_WIDTH_ARG `PROJ_WEIGHT_WIDTH_ARG `else 4 `endif;
                                                   // Projection weight bit width (default: 3-bit signed)
-parameter CONV2_WEIGHT_WIDTH = 10;                // Conv2 weight width (fixed at 10-bit)
-parameter FC_WEIGHT_WIDTH = 8;                    // FC weight width (8-bit for 70KB target, 2026-02-04)
-parameter FC_BIAS_WIDTH = 8;                      // FC bias width (8-bit for precision, 2026-02-03)
+parameter CONV1_WEIGHT_WIDTH = `ifdef CONV1_WEIGHT_WIDTH_ARG `CONV1_WEIGHT_WIDTH_ARG `else `CONV1_WEIGHT_WIDTH_VH `endif;
+                                                  // Conv1 weight width (from Python-generated params)
+parameter CONV2_WEIGHT_WIDTH = `ifdef CONV2_WEIGHT_WIDTH_ARG `CONV2_WEIGHT_WIDTH_ARG `else `CONV2_WEIGHT_WIDTH_VH `endif;
+                                                  // Conv2 weight width (from Python-generated params)
+parameter FC_WEIGHT_WIDTH = `ifdef FC_WEIGHT_WIDTH_ARG `FC_WEIGHT_WIDTH_ARG `else `FC_WEIGHT_WIDTH_VH `endif;
+                                                  // FC weight width (from Python-generated params)
+parameter FC_BIAS_WIDTH = `ifdef FC_BIAS_WIDTH_ARG `FC_BIAS_WIDTH_ARG `else `FC_BIAS_WIDTH_VH `endif;
+                                                  // FC bias width (from Python-generated params)
 parameter ENCODING_LEVELS = `ifdef ENCODING_LEVELS_ARG `ENCODING_LEVELS_ARG `else 4 `endif;
                                                   // HDC encoding levels (3=ternary, default changed to match Python)
 parameter USE_PER_FEATURE_THRESHOLDS = `ifdef USE_PER_FEATURE_THRESHOLDS_ARG `USE_PER_FEATURE_THRESHOLDS_ARG `else 1 `endif;

@@ -534,3 +534,7 @@ This debugging session identified and fixed a subtle bug introduced when FC laye
 - Try **FC_WEIGHT_WIDTH=6** as a memory/accuracy tradeoff (between 4-bit and 8-bit).
 - Re-check per-class accuracy on the full 2000-image test set after the latest threshold changes.
 - Consider additional memory-reduction methods (e.g., HV_DIM, projection width, compression, LFSR-only configs).
+
+## Recent Changes (2026-02-05)
+- **FC_WEIGHT_WIDTH now configurable** via Makefile and Python (`--fc_weight_width`), with testbench consuming generated width macros.
+- Python logs active FC weight width at startup.

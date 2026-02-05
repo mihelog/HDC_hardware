@@ -131,6 +131,7 @@ NUM_CLASSES = 2
 IMAGE_SIZE = 32
 HV_DIM=5000  # Reduced from 10000 to 5000 for memory optimization (2026-02-02: 36KB config)
 NUM_FEATURES=64  # FC layer outputs: 64 for memory-opt (36KB), 128 for high-acc (136KB), 2026-02-02
+FC_WEIGHT_WIDTH ?= 8  # FC weight width in bits (default: 8)
 TEST_SPLIT = 0.2
 EPOCHS = 75  # Increased from 50 to 75 for better QAT convergence
 BATCH_SIZE = 64
@@ -406,6 +407,7 @@ endif
 		--num_test_images $(NUM_TEST_IMAGES) \
 		--samples_per_class $(SAMPLES_PER_CLASS) \
 		--encoding_levels $(ENCODING_LEVELS) \
+		--fc_weight_width $(FC_WEIGHT_WIDTH) \
 		--pixel_width $(PIXEL_WIDTH) \
 		--arithmetic_mode $(ARITHMETIC_MODE) \
 		--qat_epochs $(QAT_EPOCHS) \
