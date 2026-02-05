@@ -118,26 +118,26 @@ The system also supports QuickDraw (10-class sketch recognition), MNIST (10-clas
 
 ## Performance Metrics
 
-### Verified Results (Manufacturing Dataset, January 2024)
+### Verified Results (Manufacturing Dataset, February 2026)
 
 | Metric | Value | Status |
 |--------|-------|--------|
-| **Verilog HDC Accuracy** | 98.00% | ✅ Exceeds target |
-| **Python HDC Accuracy** | 96.30% | ✅ Exceeds target |
+| **Verilog HDC Accuracy** | 96.50% (200-image saved test set) | ✅ Exceeds target |
+| **Python HDC Accuracy** | 96.50% (saved test set; full 2000-image set = 84.50%) | ✅ Verified |
 | **Target Accuracy** | 96%+ | ✅ Met |
-| **Per-Class Accuracy** | 98% (both classes) | ✅ Balanced |
-| **Memory Footprint** | 3.01 Mbits | ✅ On-chip SRAM friendly |
-| **Latency** | 2,444 cycles/image | ✅ Low latency |
-| **Throughput** | ~200-400 images/sec @ 500 MHz | ✅ Real-time capable |
-| **Python/Verilog Agreement** | 88% | ⚠️ Acceptable (quantization) |
+| **Per-Class Accuracy** | Class 0 = 97%, Class 1 = 96% (saved set) | ✅ Balanced |
+| **Memory Footprint** | 573,617 bits (~70 KB) | ✅ On-chip SRAM friendly |
+| **Latency** | 2,380 cycles/image | ✅ Low latency |
+| **Throughput** | ~210k images/sec @ 500 MHz | ✅ Real-time capable |
+| **Python/Verilog Agreement** | 100% (saved set) | ✅ Exact match |
 
 ### Configuration
 
 - **Dataset**: Manufacturing (2-class binary classification)
-- **CNN Architecture**: Conv1 (8 ch, 3×3) → Pool1 → Conv2 (16 ch, 3×3) → Pool2 → FC (128 features)
-- **Training**: 75 epochs with QAT starting at epoch 37
-- **HDC Parameters**: HV_DIM=5,000, 3-bit projection weights, binary encoding
-- **Feature Normalization**: DISABLED (improves accuracy by 14%)
+- **CNN Architecture**: Conv1 (8 ch, 3×3) → Pool1 → Conv2 (16 ch, 3×3) → Pool2 → FC (64 features)
+- **Training**: 50 epochs with QAT starting at epoch 26 (auto)
+- **HDC Parameters**: HV_DIM=5,000, 4-bit projection weights, 4-level encoding, LFSR projection enabled
+- **Feature Normalization**: DISABLED (improves accuracy)
 
 ---
 
@@ -263,8 +263,8 @@ Running `make manufacturing` should produce:
 
 **Principal Investigator:**
 George Michelogiannakis
-Email: mihelog@lbl.gov
-Affiliation: Lawrence Berkeley National Laboratory
+Email: mihelog@lbl.gov, mixelogj13@yahoo.co.uk
+Affiliation at the time of this work: Lawrence Berkeley National Laboratory
 
 For questions, issues, or collaboration inquiries, please contact the above.
 
@@ -272,19 +272,13 @@ For questions, issues, or collaboration inquiries, please contact the above.
 
 ## Citation
 
-If you use this work in your research, please cite:
-
-```
-VIAS HDC: Hardware-Accelerated Image Classification using Hyperdimensional Computing
-Lawrence Berkeley National Laboratory
-https://socks.lbl.gov/mihelog/vias_hdc
-```
+If you use this work in your research, please cite this repository.
 
 ---
 
 ## License
 
-[Please add license information as appropriate for your organization]
+Please see LICENSE.md
 
 ---
 
@@ -367,5 +361,4 @@ non-exclusive, royalty-free perpetual license to install, use, modify,
 prepare derivative works, incorporate into other computer software,
 distribute, and sublicense such enhancements or derivative works thereof,
 in binary and source code form.
-
 
