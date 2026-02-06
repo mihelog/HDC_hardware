@@ -1045,9 +1045,11 @@ initial begin
 
     $display("[TB] Starting data loading...");
 `ifdef BACKDOOR_LOAD
+    $display("[TB] Load mode: BACKDOOR (direct memory write, serial load skipped)");
     // Prevent DUT load logic from clobbering backdoor-written bits
     write_enable = 0;
 `else
+    $display("[TB] Load mode: SERIAL (bit-by-bit via data_in/write_enable)");
     write_enable = 1;
 `endif
 
