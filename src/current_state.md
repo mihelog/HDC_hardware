@@ -519,9 +519,12 @@ This debugging session identified and fixed a subtle bug introduced when FC laye
 
 ## TODO / Next Experiments
 
-- Re-check per-class accuracy on the full 2000-image test set after the latest threshold changes.
-- Consider additional memory-reduction methods (e.g., lower FC width to 5-bit, HV_DIM, projection width, compression, LFSR-only configs).
-- Fix OpenROAD constant-function error in `hdc_classifier.v` and re-verify full synthesizability across the Verilog.
+- **FC_WEIGHT_WIDTH=5** to cut FC weight memory (~17% vs 6-bit) with moderate accuracy risk.
+- **NUM_FEATURES=48 or 32** to shrink the FC matrix (large memory win; accuracy impact is dataset-dependent).
+- **HV_DIM=4000–4500** to reduce class-HV + LUT memory (smaller impact than FC).
+- **ENCODING_LEVELS=3** to reduce expanded features/projection cost (possible accuracy drop).
+- **PROJ_WEIGHT_WIDTH=1–3** or **USE_LFSR_PROJECTION=1** to reduce/avoid projection storage.
+- **Architectural change**: reduce Conv2 channels or add extra pooling to shrink FC input size (larger change).
 
 ## Recent Changes (2026-02-06)
 - **Loading control simplified**: `SKIP_LOADING` is now the single source of truth for serial vs backdoor loading; legacy `FAST_LOAD` maps to `SKIP_LOADING`.

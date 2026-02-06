@@ -2453,6 +2453,24 @@ SKIP_LOADING ?= 1             # 1=backdoor load (fast), 0=serial bit-by-bit (har
 
 **Note**: `FAST_LOAD` is deprecated. If set (and `SKIP_LOADING` is not explicitly set), it maps to `SKIP_LOADING` for backward compatibility.
 
+### Memory Usage
+
+The parameters below are **already available in the makefile** and have the biggest impact on memory and accuracy. The exact accuracy impact depends on the dataset and training run.
+
+- **Quick Guide**:
+  - Biggest memory savings: `FC_WEIGHT_WIDTH`, `NUM_FEATURES`, `IMAGE_SIZE`, `USE_LFSR_PROJECTION`
+  - Moderate savings: `ENCODING_LEVELS`, `PROJ_WEIGHT_WIDTH`
+  - Smaller savings: `HV_DIM`, `NUM_CLASSES`
+
+- `FC_WEIGHT_WIDTH`: FC weight bit width. **Memory impact: High** (FC weights dominate memory). **Accuracy impact: Medium–High**; lower widths can reduce separability.
+- `NUM_FEATURES`: FC output size. **Memory impact: High** (FC weights + thresholds scale linearly). **Accuracy impact: Medium–High**; more features often help.
+- `IMAGE_SIZE`: Input resolution. **Memory impact: High** (FC input size scales with (image_size/4)^2). **Accuracy impact: Medium**; higher resolution can help if the dataset has fine detail.
+- `HV_DIM`: Hypervector dimension. **Memory impact: Low–Medium** (class HVs + LUT scale linearly). **Accuracy impact: Low–Medium**; gains often diminish beyond ~5000.
+- `ENCODING_LEVELS`: Encoding granularity (2/3/4). **Memory impact: Medium** (expanded features + thresholds + projection). **Accuracy impact: Medium**; more levels can preserve magnitude.
+- `PROJ_WEIGHT_WIDTH`: Projection weight bit width. **Memory impact: High** if the projection matrix is stored. **Accuracy impact: Medium**; lower widths reduce precision.
+- `USE_LFSR_PROJECTION`: On-the-fly projection generation. **Memory impact: Very high reduction** (removes stored matrix). **Accuracy impact: Low–Medium**; depends on dataset.
+- `NUM_CLASSES`: Number of classes. **Memory impact: Low** (class HVs scale linearly). **Accuracy impact: Task-dependent**; more classes is a harder problem.
+
 ### Parameter Relationships
 
 **Image size affects**:
