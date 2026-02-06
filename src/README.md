@@ -2448,7 +2448,10 @@ DEBUG_ONLINE ?= 0             # Online learning debug
 ```makefile
 TESTBENCH ?= full             # full or quick
 VERILOG_SIM ?= iverilog       # iverilog, vcs, xcelium
+SKIP_LOADING ?= 1             # 1=backdoor load (fast), 0=serial bit-by-bit (hardware-accurate)
 ```
+
+**Note**: `FAST_LOAD` is deprecated. If set (and `SKIP_LOADING` is not explicitly set), it maps to `SKIP_LOADING` for backward compatibility.
 
 ### Parameter Relationships
 

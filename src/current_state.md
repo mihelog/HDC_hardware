@@ -523,7 +523,8 @@ This debugging session identified and fixed a subtle bug introduced when FC laye
 - Consider additional memory-reduction methods (e.g., lower FC width to 5-bit, HV_DIM, projection width, compression, LFSR-only configs).
 - Fix OpenROAD constant-function error in `hdc_classifier.v` and re-verify full synthesizability across the Verilog.
 
-## Recent Changes (2026-02-05)
+## Recent Changes (2026-02-06)
+- **Loading control simplified**: `SKIP_LOADING` is now the single source of truth for serial vs backdoor loading; legacy `FAST_LOAD` maps to `SKIP_LOADING`.
 - **Set default FC weight width to 6-bit** across Makefile/Python/docs; verified 96.5% accuracy and 100% Python/Verilog agreement on saved 200-image set.
 - **FC_WEIGHT_WIDTH now configurable** via Makefile and Python (`--fc_weight_width`), with testbench consuming generated width macros.
 - **Removed legacy `WEIGHT_WIDTH` and unused RTL scale parameters** from `hdc_classifier.v`/`hdc_top.v`; defaults and docs aligned across Verilog, Makefile, and Python.

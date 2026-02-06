@@ -81,16 +81,19 @@ WAVE_FLAGS =
 WAVE_FLAGS_VCS =
 endif
 
-# Fast Backdoor Loading (Direct memory access)
-# To enable: make <target> FAST_LOAD=1
-FAST_LOAD ?= 1
+# Configuration loading control
+# SKIP_LOADING=1 -> backdoor load (fast, skips serial stream)
+# SKIP_LOADING=0 -> serial bit-by-bit load (slow, hardware-accurate)
+SKIP_LOADING ?= 1
 
-ifeq ($(FAST_LOAD),1)
-FAST_LOAD_FLAGS = -DBACKDOOR_LOAD
-FAST_LOAD_FLAGS_VCS = +define+BACKDOOR_LOAD
-else
-FAST_LOAD_FLAGS =
-FAST_LOAD_FLAGS_VCS =
+# Legacy alias (deprecated): FAST_LOAD
+# If set explicitly, map to SKIP_LOADING unless SKIP_LOADING is already set by user.
+ifneq ($(origin FAST_LOAD), undefined)
+ifneq ($(origin SKIP_LOADING), command line)
+ifneq ($(origin SKIP_LOADING), environment)
+SKIP_LOADING := $(FAST_LOAD)
+endif
+endif
 endif
 
 ifeq ($(DEBUG),1)
@@ -177,11 +180,6 @@ PROJ_WEIGHT_WIDTH ?= 4
 
 # LFSR on-the-fly projection (eliminates 480 KB projection matrix)
 USE_LFSR_PROJECTION ?= 0
-
-# Skip configuration loading (for manufacturing test) -> Use Backdoor Load
-# When SKIP_LOADING=1, we use backdoor loading (direct assignment) for expediency
-# When SKIP_LOADING=0, we use standard serial loading (bit-by-bit)
-SKIP_LOADING ?= 1
 
 ifeq ($(SKIP_LOADING),1)
 # Force BACKDOOR_LOAD when SKIP_LOADING is enabled
@@ -461,7 +459,7 @@ ifeq ($(VERILOG_SIM),iverilog)
 			-DENABLE_ONLINE_LEARNING_ARG=$(ONLINE_LEARNING) -DUSE_PER_FEATURE_THRESHOLDS_ARG=$(USE_PER_FEATURE_THRESHOLDS) \
 			-DUSE_LFSR_PROJECTION_ARG=$(USE_LFSR_PROJECTION) \
 			-DDATASET_NAME=\"$(DATASET)\" \
-			$(DEBUG_FLAGS) -DINCLUDE_SHIFT_PARAMS $(DPI_FLAGS) $(WAVE_FLAGS) $(FAST_LOAD_FLAGS) $(SKIP_FLAGS) \
+			$(DEBUG_FLAGS) -DINCLUDE_SHIFT_PARAMS $(DPI_FLAGS) $(WAVE_FLAGS) $(SKIP_FLAGS) \
 			$(TB_SRCS) $(RTL_SRCS); \
 	else \
 		$(COMPILE_CMD) -DIMG_WIDTH_ARG=$(IMAGE_SIZE) -DIMG_HEIGHT_ARG=$(IMAGE_SIZE) \
@@ -471,7 +469,7 @@ ifeq ($(VERILOG_SIM),iverilog)
 			-DENABLE_ONLINE_LEARNING_ARG=$(ONLINE_LEARNING) -DUSE_PER_FEATURE_THRESHOLDS_ARG=$(USE_PER_FEATURE_THRESHOLDS) \
 			-DUSE_LFSR_PROJECTION_ARG=$(USE_LFSR_PROJECTION) \
 			-DDATASET_NAME=\"$(DATASET)\" \
-			$(DEBUG_FLAGS) $(DPI_FLAGS) $(WAVE_FLAGS) $(FAST_LOAD_FLAGS) $(SKIP_FLAGS) \
+			$(DEBUG_FLAGS) $(DPI_FLAGS) $(WAVE_FLAGS) $(SKIP_FLAGS) \
 			$(TB_SRCS) $(RTL_SRCS); \
 	fi
 else ifeq ($(VERILOG_SIM),vcs)
@@ -482,7 +480,7 @@ else ifeq ($(VERILOG_SIM),vcs)
 		+define+USE_PER_FEATURE_THRESHOLDS_ARG=$(USE_PER_FEATURE_THRESHOLDS) \
 		+define+USE_LFSR_PROJECTION_ARG=$(USE_LFSR_PROJECTION) \
 		+define+DATASET_NAME=\"$(DATASET)\" \
-		$(DEBUG_FLAGS_VCS) $(SHIFT_FLAGS_VCS) $(WAVE_FLAGS_VCS) $(FAST_LOAD_FLAGS_VCS) $(SKIP_FLAGS_VCS) \
+		$(DEBUG_FLAGS_VCS) $(SHIFT_FLAGS_VCS) $(WAVE_FLAGS_VCS) $(SKIP_FLAGS_VCS) \
 		$(TB_SRCS) $(RTL_SRCS) -o simv
 else ifeq ($(VERILOG_SIM),xcelium)
 	$(COMPILE_CMD) -define IMG_WIDTH_ARG=$(IMAGE_SIZE) -define IMG_HEIGHT_ARG=$(IMAGE_SIZE) \
@@ -492,7 +490,7 @@ else ifeq ($(VERILOG_SIM),xcelium)
 		-define USE_PER_FEATURE_THRESHOLDS_ARG=$(USE_PER_FEATURE_THRESHOLDS) \
 		-define USE_LFSR_PROJECTION_ARG=$(USE_LFSR_PROJECTION) \
 		-define DATASET_NAME=\"$(DATASET)\" \
-		$(SHIFT_FLAGS) $(WAVE_FLAGS) $(FAST_LOAD_FLAGS) $(SKIP_FLAGS) \
+		$(SHIFT_FLAGS) $(WAVE_FLAGS) $(SKIP_FLAGS) \
 		$(TB_SRCS) $(RTL_SRCS) -top $(TOP_MODULE)
 endif
 
