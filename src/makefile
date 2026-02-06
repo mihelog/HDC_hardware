@@ -338,11 +338,11 @@ xray_quick:
 .PHONY: manufacturing
 manufacturing: ## Full manufacturing pipeline (Python training + Verilog simulation)
               ## - 2-class binary classification ("hit" vs "background")
-              ## - 50 CNN epochs with QAT, 5000-D hypervectors, 2-level binary encoding
+              ## - EPOCHS (default 50 for this target), 5000-D hypervectors, 3-level encoding
               ## - 3-bit projection weights for memory efficiency (3.01 Mbits total)
               ## - Achieves 98% Verilog accuracy, 96.3% Python accuracy
               ## - Takes ~30 min training + ~10 min simulation
-	$(MAKE) all DATASET=manufacturing EPOCHS=50 ENCODING_LEVELS=3 USE_LEARNED_PROJECTION=0 \
+	$(MAKE) all DATASET=manufacturing EPOCHS=$(EPOCHS) ENCODING_LEVELS=3 USE_LEARNED_PROJECTION=0 \
 		HV_DIM=5000 PROJ_WEIGHT_WIDTH=3
 
 .PHONY: manufacturing_quick
@@ -364,7 +364,7 @@ manufacturing_lfsr: ## LFSR projection — eliminates 480 KB stored projection m
                    ## - Projection generated on-the-fly by 256 parallel 32-bit LFSRs
                    ## - Memory: ~141 KB total (77% reduction vs stored matrix)
                    ## - Improved accuracy with HV_DIM=10000, ENCODING_LEVELS=4, online learning
-	$(MAKE) all DATASET=manufacturing EPOCHS=50 USE_LEARNED_PROJECTION=0 \
+	$(MAKE) all DATASET=manufacturing EPOCHS=$(EPOCHS) USE_LEARNED_PROJECTION=0 \
 		USE_LFSR_PROJECTION=1
 
 .PHONY: manufacturing_small
@@ -459,7 +459,7 @@ ifeq ($(VERILOG_SIM),iverilog)
 	@if [ -f $(SHIFT_PARAMS_FILE) ]; then \
 		$(COMPILE_CMD) -DIMG_WIDTH_ARG=$(IMAGE_SIZE) -DIMG_HEIGHT_ARG=$(IMAGE_SIZE) \
 			-DNUM_CLASSES_ARG=$(NUM_CLASSES) -DHV_DIM_ARG=$(HV_DIM) -DPIXEL_WIDTH_ARG=$(PIXEL_WIDTH) \
-			-DNUM_FEATURES_ARG=$(NUM_FEATURES) \
+			-DNUM_FEATURES_ARG=$(NUM_FEATURES) -DNUM_TEST_IMAGES=$(NUM_TEST_IMAGES) \
 			-DPROJ_WEIGHT_WIDTH_ARG=$(PROJ_WEIGHT_WIDTH) -DENCODING_LEVELS_ARG=$(ENCODING_LEVELS) \
 			-DENABLE_ONLINE_LEARNING_ARG=$(ONLINE_LEARNING) -DUSE_PER_FEATURE_THRESHOLDS_ARG=$(USE_PER_FEATURE_THRESHOLDS) \
 			-DUSE_LFSR_PROJECTION_ARG=$(USE_LFSR_PROJECTION) \
@@ -469,7 +469,7 @@ ifeq ($(VERILOG_SIM),iverilog)
 	else \
 		$(COMPILE_CMD) -DIMG_WIDTH_ARG=$(IMAGE_SIZE) -DIMG_HEIGHT_ARG=$(IMAGE_SIZE) \
 			-DNUM_CLASSES_ARG=$(NUM_CLASSES) -DHV_DIM_ARG=$(HV_DIM) -DPIXEL_WIDTH_ARG=$(PIXEL_WIDTH) \
-			-DNUM_FEATURES_ARG=$(NUM_FEATURES) \
+			-DNUM_FEATURES_ARG=$(NUM_FEATURES) -DNUM_TEST_IMAGES=$(NUM_TEST_IMAGES) \
 			-DPROJ_WEIGHT_WIDTH_ARG=$(PROJ_WEIGHT_WIDTH) -DENCODING_LEVELS_ARG=$(ENCODING_LEVELS) \
 			-DENABLE_ONLINE_LEARNING_ARG=$(ONLINE_LEARNING) -DUSE_PER_FEATURE_THRESHOLDS_ARG=$(USE_PER_FEATURE_THRESHOLDS) \
 			-DUSE_LFSR_PROJECTION_ARG=$(USE_LFSR_PROJECTION) \
@@ -480,7 +480,7 @@ ifeq ($(VERILOG_SIM),iverilog)
 else ifeq ($(VERILOG_SIM),vcs)
 	$(COMPILE_CMD) +define+IMG_WIDTH_ARG=$(IMAGE_SIZE) +define+IMG_HEIGHT_ARG=$(IMAGE_SIZE) \
 		+define+NUM_CLASSES_ARG=$(NUM_CLASSES) +define+HV_DIM_ARG=$(HV_DIM) +define+PIXEL_WIDTH_ARG=$(PIXEL_WIDTH) \
-		+define+NUM_FEATURES_ARG=$(NUM_FEATURES) \
+		+define+NUM_FEATURES_ARG=$(NUM_FEATURES) +define+NUM_TEST_IMAGES=$(NUM_TEST_IMAGES) \
 		+define+PROJ_WEIGHT_WIDTH_ARG=$(PROJ_WEIGHT_WIDTH) \
 		+define+USE_PER_FEATURE_THRESHOLDS_ARG=$(USE_PER_FEATURE_THRESHOLDS) \
 		+define+USE_LFSR_PROJECTION_ARG=$(USE_LFSR_PROJECTION) \
@@ -490,7 +490,7 @@ else ifeq ($(VERILOG_SIM),vcs)
 else ifeq ($(VERILOG_SIM),xcelium)
 	$(COMPILE_CMD) -define IMG_WIDTH_ARG=$(IMAGE_SIZE) -define IMG_HEIGHT_ARG=$(IMAGE_SIZE) \
 		-define NUM_CLASSES_ARG=$(NUM_CLASSES) -define HV_DIM_ARG=$(HV_DIM) -define PIXEL_WIDTH_ARG=$(PIXEL_WIDTH) \
-		-define NUM_FEATURES_ARG=$(NUM_FEATURES) \
+		-define NUM_FEATURES_ARG=$(NUM_FEATURES) -define NUM_TEST_IMAGES=$(NUM_TEST_IMAGES) \
 		-define PROJ_WEIGHT_WIDTH_ARG=$(PROJ_WEIGHT_WIDTH) \
 		-define USE_PER_FEATURE_THRESHOLDS_ARG=$(USE_PER_FEATURE_THRESHOLDS) \
 		-define USE_LFSR_PROJECTION_ARG=$(USE_LFSR_PROJECTION) \

@@ -1,0 +1,77 @@
+<mxfile host="app.diagrams.net" modified="2026-02-06T00:00:00.000Z" agent="Codex" version="20.8.16" type="device">
+  <diagram id="overall-flow" name="Overall Flow">
+    <mxGraphModel dx="1680" dy="945" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2200" pageHeight="1000" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <!-- Orchestration -->
+        <mxCell id="mk" value="Makefile Orchestration\nTargets: train, simulate, report\nExample: make manufacturing_lfsr" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e0f2f1;strokeColor=#00796b;fontSize=12;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="40" y="40" width="260" height="90" as="geometry"/>
+        </mxCell>
+
+        <!-- Training side -->
+        <mxCell id="train_data" value="Training Images + Labels\n(manufacturing dataset)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e3f2fd;strokeColor=#1565c0;fontSize=12;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="40" y="160" width="260" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="python_train" value="Python Training (train_hdc.py)\nCNN training + quantization\nHDC training + thresholds" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f5e9;strokeColor=#2e7d32;fontSize=12;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="340" y="140" width="280" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="artifacts" value="Generated Artifacts\nweights_and_hvs.txt\nverilog_params/*.vh\npython_predictions.txt (2000)\ntest_images.txt + labels" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff8e1;strokeColor=#f9a825;fontSize=12;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="660" y="120" width="300" height="150" as="geometry"/>
+        </mxCell>
+
+        <!-- Verification / Debug -->
+        <mxCell id="py_verilog_debug" value="Python Verilog-Alignment\n(python_verilog_debug.py)\nReads weights_and_hvs.txt + test_images.txt\nGenerates python_saved_100_predictions.txt" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3e5f5;strokeColor=#6a1b9a;fontSize=12;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="1000" y="120" width="320" height="150" as="geometry"/>
+        </mxCell>
+
+        <!-- Hardware side -->
+        <mxCell id="rtl" value="Synthesizable Verilog\n(hdc_classifier.v / hdc_top.v)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ede7f6;strokeColor=#4527a0;fontSize=12;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="1000" y="310" width="300" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="tb" value="Testbench\n(hdc_classifier_tb.v)\nLoads params + images" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ede7f6;strokeColor=#4527a0;fontSize=12;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="1340" y="310" width="240" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="verilog_out" value="Verilog Results\nAccuracy, per-class stats\npython/verilog comparison" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff3e0;strokeColor=#ef6c00;fontSize=12;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="1620" y="310" width="260" height="90" as="geometry"/>
+        </mxCell>
+
+        <!-- Logs -->
+        <mxCell id="logs" value="Logs/Artifacts\nsim.log (always)\noutput (if redirected/tee)\nhdc_classifier.vcd (WAVES=1)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f1f8e9;strokeColor=#558b2f;fontSize=12;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="1620" y="430" width="260" height="90" as="geometry"/>
+        </mxCell>
+
+        <!-- Connections -->
+        <mxCell id="e0" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#00796b;" edge="1" parent="1" source="mk" target="python_train">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e01" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#00796b;" edge="1" parent="1" source="mk" target="tb">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#333333;" edge="1" parent="1" source="train_data" target="python_train">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#333333;" edge="1" parent="1" source="python_train" target="artifacts">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#333333;" edge="1" parent="1" source="artifacts" target="py_verilog_debug">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#333333;" edge="1" parent="1" source="artifacts" target="tb">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#333333;" edge="1" parent="1" source="tb" target="rtl">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#333333;" edge="1" parent="1" source="rtl" target="verilog_out">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#333333;" edge="1" parent="1" source="verilog_out" target="logs">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

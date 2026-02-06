@@ -273,6 +273,11 @@ This section lists all files committed in this repository and their purpose.
 | **project_summary.md** | High-level project overview - Architecture, current state, performance metrics, key achievements |
 | **SUMMARY_IMAGE_UPDATE_GUIDE.md** | Instructions for updating the summary image to match current manufacturing config |
 | **hdc_architecture.drawio** | Architecture diagram - Visual representation of system (open with draw.io) |
+| **overall_flow.drawio** | Overall flow diagram - Training → artifact generation → Verilog simulation (open with draw.io) |
+
+**Diagram files**:
+`hdc_architecture.drawio` shows the **synthesizable hardware architecture** (CNN pipeline, HDC encoding, projection/LFSR, class HVs, Hamming compare) with key parameters overlaid.
+`overall_flow.drawio` shows the **end-to-end flow** from training images through Python artifact generation to Verilog simulation and results.
 
 ### Dataset Files (xray_manufacturing/)
 
@@ -2847,6 +2852,7 @@ brew install gtkwave
 **draw.io (Architecture diagrams)**:
 - Web version: https://app.diagrams.net/
 - Desktop version: https://www.diagrams.net/
+Files: `hdc_architecture.drawio`, `overall_flow.drawio`
 
 ### System Requirements
 
