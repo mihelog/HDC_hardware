@@ -490,10 +490,13 @@ reg online_learning_enable_reg;  // Internal storage for OL enable bit
     // Layout: level-major, contiguous thresholds per level
     //==================================================================================
     function [31:0] get_feature_thresh;
-        input [6:0] feat; input [3:0] level; integer id;
+        input [6:0] feat; input [3:0] level; integer id; integer i, p; reg [31:0] r;
         begin
             id = (32'(level - 1) * FC_OUT_SIZE) + 32'(feat);
-            get_feature_thresh = get_thresh(16'(id));
+            // Inline threshold extraction to avoid nested function calls (synthesis-friendly)
+            p = THRESHOLD_START + 32'(id) * 32;
+            for (i=0; i<32; i=i+1) r[i] = loaded_data_mem[p + i];
+            get_feature_thresh = r;
         end
     endfunction
 
