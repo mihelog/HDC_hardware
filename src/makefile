@@ -8,8 +8,10 @@
 #
 # MAIN TARGETS:
 #   make manufacturing        - Train and simulate on manufacturing dataset (2-class, 98% target)
+#   make manufacturing_lfsr   - Manufacturing with LFSR projection (no stored matrix)
 #   make quickdraw            - Train and simulate on QuickDraw dataset (10-class sketches)
 #   make mnist                - Train and simulate on MNIST dataset (10-class digits)
+#   make caltech101           - Train and simulate on Caltech-101 dataset (101-class objects)
 #   make xray                 - Train and simulate on X-ray dataset (unsupervised clustering)
 #   make help                 - Show detailed usage information
 #
@@ -17,6 +19,8 @@
 #   make manufacturing_quick  - Quick test with 5 images, 2 classes, 2 epochs
 #   make quickdraw_quick      - Quick test for QuickDraw dataset
 #   make mnist_quick          - Quick test for MNIST dataset
+#   make caltech101_quick     - Quick test for Caltech-101 dataset
+#   make xray_quick           - Quick test for X-ray dataset
 #
 # COMPONENT TARGETS:
 #   make train                - Run Python training only (generates weights and test data)
@@ -42,7 +46,8 @@
 #   test_labels.txt           - Ground truth labels
 #   cnn_model.pth             - PyTorch checkpoint
 #   verilog_params/*.vh       - Auto-generated Verilog parameters
-#   output                    - Combined Python + Verilog output log
+#   sim.log                   - Verilog simulation log (always created by simulate target)
+#   output                    - Combined Python + Verilog output log (only if you redirect/tee stdout)
 #   hdc_classifier.vcd        - Waveform dump (if WAVES=1)
 #
 # CHANGE LOG:
