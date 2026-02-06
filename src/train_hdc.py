@@ -4642,28 +4642,43 @@ def _process_image_for_hardware(image_np, idx=None):
 def load_verilog_params(params_dir='verilog_params'):
     """Load ALL Verilog parameters that Python inference must use for consistency"""
     params = {}
+
+    def _extract_define_value(line):
+        if '`define' not in line:
+            return None
+        # Strip single-line comments before parsing
+        line = line.split('//')[0].strip()
+        if not line:
+            return None
+        parts = line.split()
+        if len(parts) < 3:
+            return None
+        return parts[-1]
     
     # Load shift parameters
     shift_file = os.path.join(params_dir, 'shift_params.vh')
     try:
         with open(shift_file, 'r') as f:
             for line in f:
-                if 'PIXEL_SHIFT_OVERRIDE' in line and '`define' in line:
-                    params['pixel_shift'] = int(line.split()[-1])
-                elif 'CONV1_SHIFT_OVERRIDE' in line and '`define' in line:
-                    params['conv1_shift'] = int(line.split()[-1])
-                elif 'CONV2_SHIFT_OVERRIDE' in line and '`define' in line:
-                    params['conv2_shift'] = int(line.split()[-1])
-                elif 'FC_SHIFT_OVERRIDE' in line and '`define' in line:
-                    params['fc_shift'] = int(line.split()[-1])
-                elif 'FC_95_PERCENTILE' in line and '`define' in line:
-                    params['fc_95_percentile'] = float(line.split()[-1])
-                elif 'GLOBAL_FEAT_MAX_SCALED' in line and '`define' in line:
-                    params['global_feat_max'] = int(line.split()[-1])
-                elif 'MIN_THRESHOLD_1' in line and '`define' in line:
-                    params['min_threshold_1'] = int(line.split()[-1])
-                elif 'MIN_THRESHOLD_2' in line and '`define' in line:
-                    params['min_threshold_2'] = int(line.split()[-1])
+                val = _extract_define_value(line)
+                if val is None:
+                    continue
+                if 'PIXEL_SHIFT_OVERRIDE' in line:
+                    params['pixel_shift'] = int(val)
+                elif 'CONV1_SHIFT_OVERRIDE' in line:
+                    params['conv1_shift'] = int(val)
+                elif 'CONV2_SHIFT_OVERRIDE' in line:
+                    params['conv2_shift'] = int(val)
+                elif 'FC_SHIFT_OVERRIDE' in line:
+                    params['fc_shift'] = int(val)
+                elif 'FC_95_PERCENTILE' in line:
+                    params['fc_95_percentile'] = float(val)
+                elif 'GLOBAL_FEAT_MAX_SCALED' in line:
+                    params['global_feat_max'] = int(val)
+                elif 'MIN_THRESHOLD_1' in line:
+                    params['min_threshold_1'] = int(val)
+                elif 'MIN_THRESHOLD_2' in line:
+                    params['min_threshold_2'] = int(val)
         print(f"Loaded shift parameters from {shift_file}")
     except FileNotFoundError:
         print(f"Warning: {shift_file} not found")
@@ -4673,12 +4688,15 @@ def load_verilog_params(params_dir='verilog_params'):
     try:
         with open(scale_file, 'r') as f:
             for line in f:
-                if 'CONV1_WEIGHT_SCALE' in line and '`define' in line:
-                    params['conv1_weight_scale'] = float(line.split()[-1])
-                elif 'CONV2_WEIGHT_SCALE' in line and '`define' in line:
-                    params['conv2_weight_scale'] = float(line.split()[-1])
-                elif 'FC_WEIGHT_SCALE' in line and '`define' in line:
-                    params['fc_weight_scale'] = float(line.split()[-1])
+                val = _extract_define_value(line)
+                if val is None:
+                    continue
+                if 'CONV1_WEIGHT_SCALE' in line:
+                    params['conv1_weight_scale'] = float(val)
+                elif 'CONV2_WEIGHT_SCALE' in line:
+                    params['conv2_weight_scale'] = float(val)
+                elif 'FC_WEIGHT_SCALE' in line:
+                    params['fc_weight_scale'] = float(val)
         print(f"Loaded scale parameters from {scale_file}")
     except FileNotFoundError:
         print(f"Warning: {scale_file} not found")
@@ -4688,14 +4706,17 @@ def load_verilog_params(params_dir='verilog_params'):
     try:
         with open(width_file, 'r') as f:
             for line in f:
-                if 'CONV1_WEIGHT_WIDTH_VH' in line and '`define' in line:
-                    params['conv1_weight_width'] = int(line.split()[-1])
-                elif 'CONV2_WEIGHT_WIDTH_VH' in line and '`define' in line:
-                    params['conv2_weight_width'] = int(line.split()[-1])
-                elif 'FC_WEIGHT_WIDTH_VH' in line and '`define' in line:
-                    params['fc_weight_width'] = int(line.split()[-1])
-                elif 'FC_BIAS_WIDTH_VH' in line and '`define' in line:
-                    params['fc_bias_width'] = int(line.split()[-1])
+                val = _extract_define_value(line)
+                if val is None:
+                    continue
+                if 'CONV1_WEIGHT_WIDTH_VH' in line:
+                    params['conv1_weight_width'] = int(val)
+                elif 'CONV2_WEIGHT_WIDTH_VH' in line:
+                    params['conv2_weight_width'] = int(val)
+                elif 'FC_WEIGHT_WIDTH_VH' in line:
+                    params['fc_weight_width'] = int(val)
+                elif 'FC_BIAS_WIDTH_VH' in line:
+                    params['fc_bias_width'] = int(val)
         print(f"Loaded weight width parameters from {width_file}")
     except FileNotFoundError:
         print(f"Warning: {width_file} not found")
@@ -6626,6 +6647,27 @@ def train_system(dataset_name='quickdraw', num_classes=2, image_size=32,
             print(result.stdout.rstrip())
         if result.stderr:
             print(result.stderr.rstrip())
+        # Parse Verilog-aligned predictions to get hardware-accurate saved-image accuracy
+        pred_path = "python_saved_100_predictions.txt"
+        if os.path.exists(pred_path):
+            total = 0
+            correct = 0
+            with open(pred_path, "r") as fh:
+                for line in fh:
+                    if "Label=" in line and "Predicted=" in line:
+                        try:
+                            label_str = line.split("Label=")[1].split(",")[0].strip()
+                            pred_str = line.split("Predicted=")[1].split(",")[0].strip()
+                            label = int(label_str)
+                            pred = int(pred_str)
+                        except (IndexError, ValueError):
+                            continue
+                        total += 1
+                        if pred == label:
+                            correct += 1
+            if total > 0:
+                verify_acc = correct / total
+                print(f"\nVerilog-aligned saved-image accuracy: {verify_acc * 100:.2f}%")
     else:
         print(f"\nWARNING: Verilog-aligned prediction export failed (exit {result.returncode})")
         if result.stdout:
@@ -6640,7 +6682,9 @@ def train_system(dataset_name='quickdraw', num_classes=2, image_size=32,
         print(f"  Quantized test set accuracy: {accuracy_quant * 100:.2f}%")
         print(f"  Saved images accuracy: {verify_acc * 100:.2f}%")
         print(f"  Difference: {abs(verify_acc - accuracy_quant) * 100:.2f}%")
-        print(f"  This may cause issues in Verilog simulation!")
+        print("  Implication: The saved Verilog subset may not be representative of the full test set,")
+        print("  so Verilog accuracy can look better or worse than overall hardware-accurate performance.")
+        print("  If this gap matters, increase NUM_TEST_IMAGES or change the selection seed and rerun.")
     else:
         print(f"\nAccuracy verification passed!")
         print(f"  Quantized test set: {accuracy_quant * 100:.2f}%")
