@@ -1,6 +1,6 @@
 // Auto-generated confidence lookup table
 // Replaces expensive division: confidence = 15 - (15 * min_dist / HV_DIM)
-// Generated at: 2026-02-05 14:12:07.755537
+// Generated at: 2026-02-05 15:24:04.082464
 // HV_DIM = 5000
 // LUT covers distances 0 to 4999
 // Size: 5000 entries × 4 bits = 2500 bytes

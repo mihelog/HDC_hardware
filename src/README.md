@@ -4,24 +4,24 @@ Lead developer and technical contact info: George Michelogiannakis, mihelog@lbl.
 
 See README.md and LICENSE.md in the root directory of this repository for licensing and copyright information. All uses of third-party software, libraries, or databases that is invoked by or appear in scripts in this repository are subject to each third-party software's own license terms.
 
-**Version**: Active development | **Last Updated**: February 5, 2026
+**Version**: Active development | **Last Updated**: February 6, 2026
 
-This directory contains the complete implementation of a hardware-accelerated Hyperdimensional Computing (HDC) image classification system with **verified Verilog RTL** achieving **96.5% accuracy** on the manufacturing dataset (200-image saved test set) with the balanced 70 KB configuration.
+This directory contains the complete implementation of a hardware-accelerated Hyperdimensional Computing (HDC) image classification system with **verified Verilog RTL** achieving **96.5% accuracy** on the manufacturing dataset (200-image saved test set) with the balanced ~55 KB configuration.
 
 **Development Note**: This code and documentation were developed with assistance from AI tools (Claude, ChatGPT, and Gemini) for code generation, editing, debugging, and documentation. All implementations have been verified through extensive testing and achieve production-ready performance metrics.
 
 ## Latest Run Snapshot (see `output`)
 
-### ✅ **CURRENT CONFIGURATION** - Balanced Memory/Accuracy (~70 KB) - 2026-02-05
+### ✅ **CURRENT CONFIGURATION** - Balanced Memory/Accuracy (~55 KB) - 2026-02-05
 **Status**: **96.5% Verilog accuracy (200-image saved test set)** | **Class-balanced** | **Python/Verilog agree 100%**
-**2026-02-05 Update**: FC weight clamp fixed so 8-bit quantization is actually applied (no longer clipped to ±8).
+**2026-02-05 Update**: FC weight clamp fixed so the configured quantization width is actually applied (no longer clipped to ±8).
 **Note**: Full 2000-image Python test set still shows class skew (Class 0 lower) and is under investigation.
 
 - **Run command**: `make manufacturing USE_LFSR_PROJECTION=1`
 - **Parameters**: NUM_FEATURES=64, HV_DIM=5000, ENCODING_LEVELS=4
-- **FC Quantization**: **8-bit weights (±128)**, 8-bit biases (±128)
+- **FC Quantization**: **6-bit weights (±32)**, 8-bit biases (±128)
 - **FC Width Override**: Pass `FC_WEIGHT_WIDTH=<bits>` to Make (e.g., `FC_WEIGHT_WIDTH=6`) to reduce FC memory; Python now logs the active width.
-- **Expected Memory**: **~70 KB** (up from 38 KB with 4-bit weights)
+- **Expected Memory**: **~55 KB** (up from 38 KB with 4-bit weights)
 - **Observed Accuracy**: **96.5%** on saved 200-image Verilog test set
 - **Per-class (saved 200 images)**: Class 0 = 97%, Class 1 = 96%
 - **Verilog Status**: ✅ Verified correct (FC bias bug fixed, Python/Verilog agree 100%)
@@ -30,19 +30,19 @@ This directory contains the complete implementation of a hardware-accelerated Hy
 - **Online learning**: Verilog updates = 0 in latest run (Python showed minor updates); testbench counter fixed to track actual `ol_we` writes, rerun pending
 - **Memory Breakdown** (expected):
   - Conv layers: ~12.6 KB (12,640 bits)
-  - **FC weights (8-bit): ~64 KB (524,288 bits)** ← Doubled from 4-bit
+  - **FC weights (6-bit): ~48 KB (393,216 bits)** ← 1.5× 4-bit
   - FC biases (8-bit): 512 bits
   - Thresholds: 6,176 bits (193 thresholds × 32 bits)
   - Class HVs: 10,000 bits (2 classes × 5000 bits)
   - Confidence LUT: 20,000 bits (5000 entries × 4 bits)
-  - Total: **~70 KB**
+  - Total: **~55 KB**
 - **Rationale**: 4-bit FC weights (±8 range, only 17 values) were too aggressive
   - Created overlapping feature distributions between classes
   - Class 0 and Class 1 features became too similar
   - Result: Class 1 only 46-58% accuracy (essentially random)
-  - 8-bit weights (±128 range, 256 values) provide sufficient expressiveness
-  - Proven: 8-bit config achieved 96.5% (Class 0: 97%, Class 1: 96%) on saved 200-image Verilog test
-- **Implementation**: `FC_WEIGHT_WIDTH=8`, `FC_BIAS_WIDTH=8` across all modules
+  - 6-bit weights (±32 range, 64 values) provide sufficient expressiveness
+  - Proven: 6-bit config achieved 96.5% (Class 0: 97%, Class 1: 96%) on saved 200-image Verilog test
+- **Implementation**: `FC_WEIGHT_WIDTH=6`, `FC_BIAS_WIDTH=8` across all modules
 
 ### 📊 **Previous Results (for reference)**
 
@@ -654,21 +654,23 @@ make manufacturing_verilog_only
 #### Dataset Selection
 - `DATASET` - manufacturing, quickdraw, mnist, xray (manufacturing is PRIMARY)
 
-#### Training Parameters (Manufacturing Defaults)
+#### Training Parameters (Defaults)
 - `NUM_CLASSES=2` - Number of classes
-- `EPOCHS=50` - Training epochs for the current manufacturing target (QAT starts at epoch 26)
+- `EPOCHS=75` - Training epochs (QAT auto mode)
 - `BATCH_SIZE=64` - Batch size
-- `SAMPLES_PER_CLASS=4000` - Training samples per class
+- `SAMPLES_PER_CLASS=5000` - Training samples per class
 - `IMAGE_SIZE=32` - Image width/height
 - `HV_DIM=5000` - Hypervector dimension
-- `ENCODING_LEVELS=2` - HDC encoding levels (binary)
-- `PROJ_WEIGHT_WIDTH=3` - Projection weight bit width
+- `ENCODING_LEVELS=4` - HDC encoding levels (quaternary)
+- `PROJ_WEIGHT_WIDTH=4` - Projection weight bit width
 - `PIXEL_WIDTH=8` - Input pixel bit width
+- `NUM_FEATURES=64` - FC output size
+- `FC_WEIGHT_WIDTH=6` - FC weight bit width
 
 #### Advanced Training
 - `TEST_SPLIT=0.2` - Test set fraction
-- `NUM_TEST_IMAGES=100` - Images saved for Verilog
-- `ONLINE_LEARNING=0` - Enable online learning (0/1)
+- `NUM_TEST_IMAGES=200` - Images saved for Verilog
+- `ONLINE_LEARNING=1` - Enable online learning (0/1)
 - `ARITHMETIC_MODE=integer` - integer or float
 - `QAT_FUSE_BN=0` - Fuse batch norm weights when enabling QAT (0/1)
 
@@ -694,7 +696,7 @@ make manufacturing_verilog_only
 - **Solution**: Check train_hdc.py:4911-4917 for PyTorch seed controls
 
 **Issue**: Lower accuracy than expected (< 95%)
-- **Solution**: Verify EPOCHS=50, HV_DIM=5000, PROJ_WEIGHT_WIDTH=3
+- **Solution**: Verify EPOCHS=75, HV_DIM=5000, PROJ_WEIGHT_WIDTH=4
 
 **Issue**: Python/Verilog agreement is low (< 85%)
 - **Solution**: Verify test_images.txt was regenerated with same parameters
@@ -1282,33 +1284,33 @@ The `save_for_verilog()` function in train_hdc.py generates a **binary file** co
 
 1. **Conv1 Weights** (CONV1_WEIGHT_BITS)
    - Shape: [8, 1, 3, 3]
-   - Quantized to 12-bit signed integers
-   - Scaled by CONV1_WEIGHT_SCALE (512)
+   - Quantized to `CONV1_WEIGHT_WIDTH`-bit signed integers (default: 12)
+   - Scaled by `CONV1_WEIGHT_SCALE` (from `verilog_params/scales.vh`)
 
 2. **Conv1 Biases** (CONV1_BIAS_BITS)
    - Shape: [8]
-   - Quantized to 12-bit signed integers
-   - Scaled by CONV1_BIAS_SCALE (512)
+   - Quantized to `CONV1_WEIGHT_WIDTH`-bit signed integers (default: 12)
+   - Scaled by `CONV1_BIAS_SCALE` (from `verilog_params/scales.vh`)
 
 3. **Conv2 Weights** (CONV2_WEIGHT_BITS)
    - Shape: [16, 8, 3, 3]
-   - Quantized to 10-bit signed integers
-   - Scaled by CONV2_WEIGHT_SCALE (128)
+   - Quantized to `CONV2_WEIGHT_WIDTH`-bit signed integers (default: 10)
+   - Scaled by `CONV2_WEIGHT_SCALE` (from `verilog_params/scales.vh`)
 
 4. **Conv2 Biases** (CONV2_BIAS_BITS)
    - Shape: [16]
-   - Quantized to 10-bit signed integers
-   - Scaled by CONV2_BIAS_SCALE (128)
+   - Quantized to `CONV2_WEIGHT_WIDTH`-bit signed integers (default: 10)
+   - Scaled by `CONV2_BIAS_SCALE` (from `verilog_params/scales.vh`)
 
 5. **FC Weights** (FC_WEIGHT_BITS)
-   - Shape: [128, 1024] (for 32×32 images)
-   - Quantized to 16-bit signed integers (reduced from 32 to save memory)
-   - Scaled by FC_WEIGHT_SCALE (32)
+   - Shape: [`NUM_FEATURES`, 1024] for 32×32 images (default `NUM_FEATURES=64`)
+   - Quantized to `FC_WEIGHT_WIDTH`-bit signed integers (default: 6)
+   - Scaled by `FC_WEIGHT_SCALE` (from `verilog_params/scales.vh`)
 
 6. **FC Biases** (FC_BIAS_BITS)
-   - Shape: [128]
-   - Quantized to 16-bit signed integers
-   - Scaled by FC_BIAS_SCALE (32)
+   - Shape: [`NUM_FEATURES`] (default `NUM_FEATURES=64`)
+   - Quantized to `FC_BIAS_WIDTH`-bit signed integers (default: 8)
+   - Scaled by `FC_BIAS_SCALE` (from `verilog_params/scales.vh`)
 
 7. **HDC Encoding Thresholds** (THRESHOLD_BITS)
    - Class-aware thresholds for binary encoding
@@ -1573,26 +1575,18 @@ module hdc_classifier #(
     parameter NUM_CLASSES = 2,
     parameter HDC_HV_DIM = 5000,
     parameter HDC_CONF_WIDTH = 4,
-    parameter CONFIDENCE_LUT_SIZE = 500,
+    parameter CONFIDENCE_LUT_SIZE = 5000,
 
     // Weight bit widths
     parameter CONV1_WEIGHT_WIDTH = 12,
     parameter CONV2_WEIGHT_WIDTH = 10,
-    parameter FC_WEIGHT_WIDTH = 16,    // Reduced from 32
-    parameter WEIGHT_WIDTH = 16,
-
-    // Weight scales (for dequantization)
-    parameter CONV1_WEIGHT_SCALE = 512,
-    parameter CONV1_BIAS_SCALE = 512,
-    parameter CONV2_WEIGHT_SCALE = 128,
-    parameter CONV2_BIAS_SCALE = 128,
-    parameter FC_WEIGHT_SCALE = 32,
-    parameter FC_BIAS_SCALE = 32,
+    parameter FC_WEIGHT_WIDTH = 6,
+    parameter FC_BIAS_WIDTH = 8,
 
     // HDC parameters
-    parameter HDC_PROJ_WEIGHT_WIDTH = 3,
+    parameter HDC_PROJ_WEIGHT_WIDTH = 4,
     parameter ENABLE_ONLINE_LEARNING = 1,
-    parameter ENCODING_LEVELS = 2,
+    parameter ENCODING_LEVELS = 4,
 
     // Parallelism parameters
     parameter PARALLEL_PROJ = 20,
@@ -1744,32 +1738,28 @@ end
 
 **Shift parameter**: `FC_SHIFT` (typically 6)
 
-**Memory reduction**: FC weights reduced from 32-bit to 16-bit saves ~2 Mbits
+**Memory reduction**: FC weights are quantized (default 6-bit; configurable via `FC_WEIGHT_WIDTH`)
 
 #### Stage 6: HDC Encoding
 
 **Function**: Convert continuous FC features to binary using adaptive thresholds
 
 **Architecture**:
-- Input: 128 FC features (signed integers)
-- Encoding: 2-level (binary) - ENCODING_LEVELS=2
-- Threshold: Class-aware, typically 0
-- Output: 256 binary features (128 × (2-1) expansion)
+- Input: 64 FC features (signed integers)
+- Encoding: 4-level (quaternary) - ENCODING_LEVELS=4
+- Thresholds: Per-feature, learned from training data
+- Output: 192 binary features (64 × (4-1) expansion)
 
 **Encoding logic**:
 ```verilog
-// For each FC feature
+// For each FC feature (4-level encoding)
 for (i = 0; i < FC_OUT_SIZE; i++) begin
     fc_val = fc_out[i];
 
-    // Binary encoding: feature > threshold → 1, else → 0
-    if (fc_val > hdc_threshold_level1) begin
-        binary_features[2*i] = 1;      // Positive feature
-        binary_features[2*i+1] = 0;
-    end else begin
-        binary_features[2*i] = 0;
-        binary_features[2*i+1] = 1;    // Negative feature
-    end
+    // Quaternary encoding using three thresholds (t1 < t2 < t3)
+    binary_features[i] = (fc_val > t1);
+    binary_features[i + FC_OUT_SIZE] = (fc_val > t2);
+    binary_features[i + 2*FC_OUT_SIZE] = (fc_val > t3);
 end
 ```
 
@@ -1955,21 +1945,13 @@ end
 #### Weight Bit Widths
 - `CONV1_WEIGHT_WIDTH` (default: 12) - Conv1 weight/bias precision
 - `CONV2_WEIGHT_WIDTH` (default: 10) - Conv2 weight/bias precision
-- `FC_WEIGHT_WIDTH` (default: 8) - FC weight precision
+- `FC_WEIGHT_WIDTH` (default: 6) - FC weight precision
 - `FC_BIAS_WIDTH` (default: 8) - FC bias precision
-- `WEIGHT_WIDTH` (default: 16) - General weight precision
 - `HDC_PROJ_WEIGHT_WIDTH` (default: 4) - Projection matrix precision (4-bit signed)
 
-#### Quantization Scales
-- `CONV1_WEIGHT_SCALE` (default: 512) - Scale factor for Conv1 weights
-- `CONV1_BIAS_SCALE` (default: 512) - Scale factor for Conv1 biases
-- `CONV2_WEIGHT_SCALE` (default: 128) - Scale factor for Conv2 weights
-- `CONV2_BIAS_SCALE` (default: 128) - Scale factor for Conv2 biases
-- `FC_WEIGHT_SCALE` (default: 32) - Scale factor for FC weights
-- `FC_BIAS_SCALE` (default: 64) - Scale factor for FC biases
-
-**Note**: Scales are reciprocals of quantization step sizes. Higher scale = finer quantization.
-**Note**: Scales are clamped to a minimum of 1.0 to avoid sub-unity scales that would expand integer values.
+#### Quantization Scales (Generated)
+Quantization scales are generated by Python into `verilog_params/scales.vh` for debugging/analysis
+and are not RTL parameters in `hdc_classifier.v`.
 
 #### Shift Parameters (Dynamic)
 These are set by Python during Verilog parameter generation:
@@ -2010,7 +1992,7 @@ Higher parallelism = faster but larger area.
 **Architecture**:
 ```python
 class SimpleCNN(nn.Module):
-    def __init__(self, num_features=128, input_size=32, in_channels=1):
+    def __init__(self, num_features=64, input_size=32, in_channels=1):
         super(SimpleCNN, self).__init__()
         self.conv1 = nn.Conv2d(in_channels, 8, 3, padding=1, bias=True)
         self.bn1 = nn.Identity()  # Removed BatchNorm to prevent tiny weights
@@ -2048,15 +2030,15 @@ def fake_quantize(self, x, scale, num_bits=8):
 - Small weights → poor gradient flow → slower convergence
 - Removed bn1, kept bn2 for better performance
 
-#### HDClassifier
+#### HDCClassifier
 
 **Purpose**: Hyperdimensional computing classifier
 
 **Architecture**:
 ```python
-class HDClassifier:
-    def __init__(self, num_features, num_classes, hv_dim=10000,
-                 encoding_levels=2, proj_weight_width=4):
+class HDCClassifier:
+    def __init__(self, num_features=64, num_classes=2, hv_dim=5000,
+                 encoding_levels=4, proj_weight_width=4):
         self.num_features = num_features
         self.num_classes = num_classes
         self.hv_dim = hv_dim
@@ -2104,25 +2086,32 @@ class HDClassifier:
 **Parameters**:
 ```python
 def train_system(
-    dataset_name='manufacturing',
+    dataset_name='quickdraw',
     num_classes=2,
     image_size=32,
-    num_features=128,
-    hv_dim=5000,
-    encoding_levels=2,
-    epochs=50,
-    batch_size=64,
-    samples_per_class=4000,
     test_split=0.2,
-    num_test_images=100,
-    proj_weight_width=3,
+    epochs=75,
+    batch_size=64,
+    samples_per_class=5000,
     pixel_width=8,
-    enable_online_learning=False,
-    random_seed=42,
+    encoding_levels=4,
+    qat_epochs=0,
+    arithmetic_mode='integer',
+    test_different_images_in_verilog=False,
+    enable_online_learning=True,
+    use_per_feature_thresholds=True,
+    unlabeled=False,
+    data_dirs=None,
     num_clusters=10,
     quantize_bits=8,
-    arithmetic_mode='integer',
-    debug=False
+    proj_weight_width=4,
+    random_seed=42,
+    num_test_images=200,
+    qat_fuse_bn=False,
+    num_features=64,
+    fc_weight_width=8,
+    debug_pipeline=False,
+    debug_samples=2
 )
 ```
 
@@ -2153,7 +2142,7 @@ def train_system(
 4. **Initialize models**:
    ```python
    cnn = SimpleCNN(num_features=num_features, input_size=image_size, in_channels=1)
-   hdc = HDClassifier(num_features=num_features, num_classes=num_classes,
+   hdc = HDCClassifier(num_features=num_features, num_classes=num_classes,
                       hv_dim=hv_dim, encoding_levels=encoding_levels,
                       proj_weight_width=proj_weight_width)
    ```
@@ -2417,32 +2406,34 @@ All configuration is controlled via makefile variables:
 
 #### Dataset Selection
 ```makefile
-DATASET ?= manufacturing  # manufacturing, quickdraw, mnist, xray
+DATASET ?=               # set by target (manufacturing, quickdraw, mnist, xray)
 ```
 
-#### Training Parameters (Manufacturing Defaults)
+#### Training Parameters (Defaults)
 ```makefile
 NUM_CLASSES ?= 2          # Number of classes
-EPOCHS ?= 50              # Training epochs (QAT at epoch 26)
+EPOCHS ?= 75              # Training epochs
 BATCH_SIZE ?= 64          # Batch size
-SAMPLES_PER_CLASS ?= 4000 # Samples per class
+SAMPLES_PER_CLASS ?= 5000 # Samples per class
 IMAGE_SIZE ?= 32          # Image width/height
 PIXEL_WIDTH ?= 8          # Pixel bit width
+NUM_FEATURES ?= 64        # FC output size
+FC_WEIGHT_WIDTH ?= 6      # FC weight bit width
 ```
 
 #### HDC Parameters
 ```makefile
 HV_DIM ?= 5000                # Hypervector dimension
-ENCODING_LEVELS ?= 2          # Binary encoding
-PROJ_WEIGHT_WIDTH ?= 3        # 3-bit projection weights (ignored when USE_LFSR_PROJECTION=1)
+ENCODING_LEVELS ?= 4          # Quaternary encoding
+PROJ_WEIGHT_WIDTH ?= 4        # 4-bit projection weights (ignored when USE_LFSR_PROJECTION=1)
 USE_LFSR_PROJECTION ?= 0      # 1 = on-the-fly LFSR projection (78% memory reduction)
 ```
 
 #### Advanced Parameters
 ```makefile
 TEST_SPLIT ?= 0.2             # Test set fraction
-NUM_TEST_IMAGES ?= 100        # Images saved for Verilog
-ONLINE_LEARNING ?= 0          # Disable online learning
+NUM_TEST_IMAGES ?= 200        # Images saved for Verilog
+ONLINE_LEARNING ?= 1          # Enable online learning
 ARITHMETIC_MODE ?= integer    # Integer arithmetic mode
 ```
 

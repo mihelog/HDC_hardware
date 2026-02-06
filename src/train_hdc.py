@@ -20,7 +20,7 @@ from datetime import datetime
 import h5py
 
 class SimpleCNN(nn.Module):
-    def __init__(self, num_features=128, input_size=32, in_channels=1):
+    def __init__(self, num_features=64, input_size=32, in_channels=1):
         super(SimpleCNN, self).__init__()
         self.conv1 = nn.Conv2d(in_channels, 8, 3, padding=1, bias=True)
         # REMOVED BatchNorm after Conv1 to prevent tiny weight learning
@@ -344,7 +344,7 @@ class SimpleCNN(nn.Module):
             
             # Determine bit width for this layer to calculate ideal scale
             if layer_name == 'fc':
-                layer_bit_width = getattr(self, 'fc_weight_width', 8)  # FC weight width (default 8-bit)
+                layer_bit_width = getattr(self, 'fc_weight_width', 6)  # FC weight width (default 6-bit)
                 layer_bias_bit_width = 8   # FC bias width fixed at 8-bit for precision
             elif layer_name == 'conv1':
                 layer_bit_width = 12
@@ -560,7 +560,7 @@ class SimpleCNN(nn.Module):
         # FC layer: parameterized weight width, 8-bit biases
         fc_w_scale = self.quant_scales['fc']['weight_scale']
         fc_b_scale = self.quant_scales['fc']['bias_scale']
-        fc_weight_width = getattr(self, 'fc_weight_width', 8)
+        fc_weight_width = getattr(self, 'fc_weight_width', 6)
         fc_weight_clamp_max = (1 << (fc_weight_width - 1)) - 1
         fc_weight_clamp_min = -(1 << (fc_weight_width - 1))
         fc_bias_clamp_max = 127      # 8-bit signed biases (keep precision)
@@ -875,7 +875,7 @@ class SimpleCNN(nn.Module):
             fc_bias = self.fc.int_bias
         
         # Check bias scale ratio
-        # Note: FC layer intentionally uses different weight and bias bit widths (4-bit weights, 8-bit biases)
+        # Note: FC layer intentionally uses different weight and bias bit widths (6-bit weights, 8-bit biases by default)
         # so bias_scale_ratio will be weight_scale/bias_scale (e.g., 2.0/64.0 = 0.03125), not 1.0
         bias_scale_ratio = fc_w_scale / fc_b_scale
         # Skip warning for FC layer since different bit widths are intentional
@@ -1416,11 +1416,11 @@ class HDCClassifier:
     # Returns: None.
     # Args:
     #   num_classes: Number of classes to classify.
-    #   hv_dim: Dimension of the hypervectors (e.g., 10000).
+    #   hv_dim: Dimension of the hypervectors (e.g., 5000).
     #   num_features: Number of input features (from CNN output).
     #   encoding_levels: Number of levels for feature encoding (1=binary, >1=thermometer).
-    def __init__(self, num_classes=10, hv_dim=10000, num_features=128, encoding_levels=6,
-                 use_per_feature_thresholds=False):
+    def __init__(self, num_classes=2, hv_dim=5000, num_features=64, encoding_levels=4,
+                 use_per_feature_thresholds=True):
         self.num_classes = num_classes
         self.hv_dim = hv_dim
         self.num_features = num_features
@@ -2302,7 +2302,7 @@ class HDCClassifier:
 
 class LearnedHDCClassifier(nn.Module):
     """HDC Classifier with learned projection matrix instead of random"""
-    def __init__(self, num_classes=10, hv_dim=10000, num_features=128, encoding_levels=3):
+    def __init__(self, num_classes=2, hv_dim=5000, num_features=64, encoding_levels=4):
         super(LearnedHDCClassifier, self).__init__()
         self.num_classes = num_classes
         self.hv_dim = hv_dim
@@ -3171,7 +3171,7 @@ def profile_with_shifts(cnn, test_loader, device, conv1_shift, conv2_shift, pixe
             x = x.view(x.size(0), -1)
             fc_weights = cnn.fc.int_weight
             fc_bias = cnn.fc.int_bias
-            # Note: FC uses different bit widths (4-bit weights, 8-bit biases), so ratio != 1.0 is expected
+            # Note: FC uses different bit widths (6-bit weights, 8-bit biases by default), so ratio != 1.0 is expected
             bias_scale_ratio = cnn.quant_scales['fc']['weight_scale'] / cnn.quant_scales['fc']['bias_scale']
             # Skip warning for FC - different bit widths are intentional
             
@@ -3804,7 +3804,7 @@ def detect_pixel_width(test_images):
 #   test_images: Optional test images for pixel width detection.
 #   proj_weight_width: Bit width for projection weights.
 #   random_seed: Random seed for reproducibility.
-def save_for_verilog(cnn, hdc, image_size, num_classes, hv_dim, in_channels=1, pixel_width=None, shift_params=None, fixed_point_mode=False, normalization_enabled=False, test_images=None, proj_weight_width=4, fc_weight_width=8, random_seed=42, use_lfsr_projection=False):
+def save_for_verilog(cnn, hdc, image_size, num_classes, hv_dim, in_channels=1, pixel_width=None, shift_params=None, fixed_point_mode=False, normalization_enabled=False, test_images=None, proj_weight_width=4, fc_weight_width=6, random_seed=42, use_lfsr_projection=False):
     """Save weights, projection matrix, and hypervectors in format for Verilog testbench
 
     Args:
@@ -3836,12 +3836,12 @@ def save_for_verilog(cnn, hdc, image_size, num_classes, hv_dim, in_channels=1, p
         # Original quantized mode
         CONV1_WEIGHT_WIDTH = 12  # 12-bit for Conv1 (±2048)
         CONV2_WEIGHT_WIDTH = 10  # 10-bit for Conv2 (±512)
-        FC_WEIGHT_WIDTH = fc_weight_width  # FC weight width (default 8-bit)
+        FC_WEIGHT_WIDTH = fc_weight_width  # FC weight width (default 6-bit)
         FC_BIAS_WIDTH = 8        # 8-bit for FC biases (±128) - precision (2026-02-03)
     
     # Use provided shift parameters or defaults
     if shift_params is None:
-        # Default to safe value for 4-bit FC weights (2026-02-03: updated for 36KB target)
+        # Default shift parameters (tuned for quantized FC weights; revisit if changing widths)
         HARDWARE_FC_SHIFT = 20
         HARDWARE_CONV1_SHIFT = 9
         HARDWARE_CONV2_SHIFT = 8
@@ -4002,17 +4002,19 @@ def save_for_verilog(cnn, hdc, image_size, num_classes, hv_dim, in_channels=1, p
         conv1_bias = 8
         conv2_weights = 8 * 16 * 3 * 3  # in_ch * out_ch * kernel * kernel
         conv2_bias = 16
-        fc_weights = 128 * 1024  # 128 outputs, 1024 inputs
-        fc_bias = 128
+        fc_weights = num_features * 1024  # num_features outputs, 1024 inputs (32x32 default)
+        fc_bias = num_features
         
         conv1_total = conv1_weights + conv1_bias  # 80 (72 weights + 8 biases)
         conv2_total = conv2_weights + conv2_bias  # 1168
-        fc_total = fc_weights + fc_bias  # 131200
+        fc_total = fc_weights + fc_bias  # num_features * 1024 + num_features
         
-        # Calculate bit counts
+        # Calculate bit counts (bias uses FC_BIAS_WIDTH)
         conv1_bits = conv1_total * CONV1_WEIGHT_WIDTH
         conv2_bits = conv2_total * CONV2_WEIGHT_WIDTH
-        fc_bits = fc_total * FC_WEIGHT_WIDTH
+        fc_weight_bits = fc_weights * FC_WEIGHT_WIDTH
+        fc_bias_bits = fc_bias * FC_BIAS_WIDTH
+        fc_bits = fc_weight_bits + fc_bias_bits
         cnn_bits = conv1_bits + conv2_bits + fc_bits
         
         # Projection and HV sizes
@@ -5218,7 +5220,7 @@ def train_system(dataset_name='quickdraw', num_classes=2, image_size=32,
                  enable_online_learning=True, use_per_feature_thresholds=True,
                  unlabeled=False, data_dirs=None, num_clusters=10, quantize_bits=8,
                  proj_weight_width=4, random_seed=42, num_test_images=200,
-                 qat_fuse_bn=False, num_features=64, fc_weight_width=8,
+                 qat_fuse_bn=False, num_features=64, fc_weight_width=6,
                  debug_pipeline=False, debug_samples=2):
     """
     Train the complete HDC system (CNN + HDC classifier).
@@ -6734,8 +6736,8 @@ For more information, see README.md or how_to_run.txt
                        help='Number of CNN output features (FC layer outputs). Default: 64. '
                             'Higher values (128, 256) improve accuracy but significantly increase memory (FC layer dominates). '
                             'Reduced from 128 to 64 for 50%% memory reduction (2026-02-02)')
-    parser.add_argument('--fc_weight_width', type=int, default=8,
-                       help='FC weight bit-width (4-16). Default: 8. Lower values reduce memory but may reduce accuracy.')
+    parser.add_argument('--fc_weight_width', type=int, default=6,
+                       help='FC weight bit-width (4-16). Default: 6. Lower values reduce memory but may reduce accuracy.')
 
     # HDC parameters
     parser.add_argument('--hv_dim', type=int, default=5000,

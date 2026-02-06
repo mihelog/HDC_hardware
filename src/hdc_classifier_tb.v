@@ -83,13 +83,13 @@ parameter IMG_WIDTH = `ifdef IMG_WIDTH_ARG `IMG_WIDTH_ARG `else 32 `endif;
 parameter IMG_HEIGHT = `ifdef IMG_HEIGHT_ARG `IMG_HEIGHT_ARG `else 32 `endif;
                                                   // Image height in pixels (default: 32)
 parameter PIXEL_WIDTH = `ifdef PIXEL_WIDTH_ARG `PIXEL_WIDTH_ARG `else 8 `endif;
-                                                  // Bits per pixel (default: 16 for compatibility)
+                                                  // Bits per pixel (default: 8)
 parameter NUM_CLASSES = `ifdef NUM_CLASSES_ARG `NUM_CLASSES_ARG `else 2 `endif;
-                                                  // Number of classification classes (default: 10)
+                                                  // Number of classification classes (default: 2)
 parameter HDC_HV_DIM = `ifdef HV_DIM_ARG `HV_DIM_ARG `else 5000 `endif;
                                                   // Hypervector dimension (default: 5000)
 parameter HDC_PROJ_WEIGHT_WIDTH = `ifdef PROJ_WEIGHT_WIDTH_ARG `PROJ_WEIGHT_WIDTH_ARG `else 4 `endif;
-                                                  // Projection weight bit width (default: 3-bit signed)
+                                                  // Projection weight bit width (default: 4-bit signed)
 parameter CONV1_WEIGHT_WIDTH = `ifdef CONV1_WEIGHT_WIDTH_ARG `CONV1_WEIGHT_WIDTH_ARG `else `CONV1_WEIGHT_WIDTH_VH `endif;
                                                   // Conv1 weight width (from Python-generated params)
 parameter CONV2_WEIGHT_WIDTH = `ifdef CONV2_WEIGHT_WIDTH_ARG `CONV2_WEIGHT_WIDTH_ARG `else `CONV2_WEIGHT_WIDTH_VH `endif;
@@ -99,7 +99,7 @@ parameter FC_WEIGHT_WIDTH = `ifdef FC_WEIGHT_WIDTH_ARG `FC_WEIGHT_WIDTH_ARG `els
 parameter FC_BIAS_WIDTH = `ifdef FC_BIAS_WIDTH_ARG `FC_BIAS_WIDTH_ARG `else `FC_BIAS_WIDTH_VH `endif;
                                                   // FC bias width (from Python-generated params)
 parameter ENCODING_LEVELS = `ifdef ENCODING_LEVELS_ARG `ENCODING_LEVELS_ARG `else 4 `endif;
-                                                  // HDC encoding levels (3=ternary, default changed to match Python)
+                                                  // HDC encoding levels (default: 4)
 parameter USE_PER_FEATURE_THRESHOLDS = `ifdef USE_PER_FEATURE_THRESHOLDS_ARG `USE_PER_FEATURE_THRESHOLDS_ARG `else 1 `endif;
                                                   // 1=per-feature thresholds, 0=global thresholds
 parameter USE_LFSR_PROJECTION = `ifdef USE_LFSR_PROJECTION_ARG `USE_LFSR_PROJECTION_ARG `else 0 `endif;
@@ -107,7 +107,7 @@ parameter USE_LFSR_PROJECTION = `ifdef USE_LFSR_PROJECTION_ARG `USE_LFSR_PROJECT
 parameter NUM_TEST_IMAGES = `ifdef NUM_TEST_IMAGES `NUM_TEST_IMAGES `else 200 `endif;
                                                   // Number of test images to process
 parameter NUM_FEATURES = `ifdef NUM_FEATURES_ARG `NUM_FEATURES_ARG `else 64 `endif;
-                                                  // FC layer output size (64 or 128, default: 128)
+                                                  // FC layer output size (default: 64)
 parameter CLASS_WIDTH = $clog2(NUM_CLASSES);      // Bits needed to represent class ID
 parameter HDC_CONF_WIDTH = 4;                     // Confidence score width (4-bit = 0-15)
 

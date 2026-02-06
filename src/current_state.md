@@ -1,7 +1,7 @@
 # Current State - HDC System Investigation (Feb 4, 2026)
 
-**Date:** 2026-02-05
-**Status:** ✅ **Verilog verified correct** | ✅ **96.5% accuracy on saved 200-image set** | ⚠️ **Full 2000-image set still class-skewed** | ✅ **8-bit FC weights implemented** | ✅ **FC clamp fix applied**
+**Date:** 2026-02-06
+**Status:** ✅ **Verilog verified correct** | ✅ **96.5% accuracy on saved 200-image set** | ⚠️ **Full 2000-image set still class-skewed** | ✅ **6-bit FC weights validated (default)** | ✅ **FC clamp fix applied**
 
 ## Executive Summary
 
@@ -9,7 +9,7 @@
 1. ✅ **Verilog Verification Complete** - FC bias bug fixed; Python/Verilog agree 100% on saved set
 2. ✅ **High accuracy restored** - 96.5% on saved 200-image test set (Class 0 = 97%, Class 1 = 96%)
 3. ⚠️ **Full-set skew remains** - 2000-image Python set still shows Class 0 lower than Class 1
-4. ✅ **8-bit FC weights implemented** - expressiveness restored
+4. ✅ **6-bit FC weights validated** - expressiveness restored with lower memory
 5. 🔧 **Adaptive per-feature thresholds implemented** - Class-balanced percentile search (pending full-set validation)
 6. 🧪 **Online learning counter fixed in TB** - now counts actual `ol_we` writes (rerun pending)
 
@@ -19,12 +19,12 @@
 - Verilog: 73.0% (Class 0: 100%, Class 1: 46%)
 - Issue: **56.5% of images have Hamming distance=0 to Class 0** (perfect match!)
 
-**Current Configuration (70 KB, expected 85-95% accuracy)** - Implemented ✅:
-- NUM_FEATURES=64, HV_DIM=5000, **FC_WEIGHT_WIDTH=8**, FC_BIAS_WIDTH=8
-- Expected: Both classes 85-95% (based on previous 96.5% results)
-- Trade-off: +32 KB memory for much better class discrimination
-- **Status**: Code updated, ready to test
-  - **Note (2026-02-05)**: Fixed FC clamp in `train_hdc.py` so 8-bit weights are no longer clipped to ±8.
+**Current Configuration (~55 KB, verified 96.5% accuracy)** - Implemented ✅:
+- NUM_FEATURES=64, HV_DIM=5000, **FC_WEIGHT_WIDTH=6**, FC_BIAS_WIDTH=8
+- Observed: 96.5% on saved 200-image set (Class 0: 97%, Class 1: 96%)
+- Trade-off: +17 KB memory vs 4-bit, with strong class discrimination
+- **Status**: Verified on saved set; full 2000-image set rerun pending
+  - **Note (2026-02-05)**: Fixed FC clamp in `train_hdc.py` so the configured width (6-bit) is applied (no longer clipped to ±8).
 
 ## Session Timeline (Feb 4, 2026)
 
@@ -75,7 +75,7 @@
 
 **The fundamental issue**: Features are too similar, not threshold computation!
 
-**4-bit FC weights** (current):
+**4-bit FC weights** (previous):
 - Range: ±8 (only 17 possible values)
 - Severely limits FC layer expressiveness
 - Cannot create discriminative features
@@ -86,92 +86,76 @@
 - Medians in same threshold range
 - Increasing HV_DIM won't help (garbage in, garbage out)
 
-**8-bit FC weights** (high-accuracy config from Feb 2):
+**8-bit FC weights** (reference high-accuracy config from Feb 2):
 - Range: ±128 (256 possible values)
 - Much more expressive FC layer
 - Creates discriminative features
 - Result: 96.5% accuracy (Class 0: 97%, Class 1: 96%)
 
-## Solution Implemented: 8-bit FC Weights ✅
+## Solution Implemented: 6-bit FC Weights ✅
 
-### Why This Will Work
+### Why This Works
 
-**Proven results** from Feb 2, 2026:
-- Configuration: NUM_FEATURES=64, HV_DIM=5000, FC_WEIGHT_WIDTH=8, FC_BIAS_WIDTH=8
-- Accuracy: 96.5% with 99% Python/Verilog agreement
-- Memory: ~70 KB
+**Validated results** from the latest 6-bit run:
+- Configuration: NUM_FEATURES=64, HV_DIM=5000, FC_WEIGHT_WIDTH=6, FC_BIAS_WIDTH=8
+- Accuracy: 96.5% with 100% Python/Verilog agreement (saved 200-image set)
+- Memory: 442,545 bits (55,318 bytes, ~55 KB)
 - Both classes worked well (Class 0: 97%, Class 1: 96%)
 
 **Memory trade-off**:
 - Previous (4-bit FC weights): 38 KB, 73-79% accuracy
-- **Current (8-bit FC weights)**: 70 KB (+32 KB), expected 85-95% accuracy
-- High-accuracy (NUM_FEATURES=128, HV_DIM=10000): 136 KB, 96.5% accuracy
+- **Current (6-bit FC weights)**: ~55 KB (+17 KB), 96.5% accuracy on saved set
+- 8-bit reference: ~70 KB, 96.5% accuracy (Feb 2 high-accuracy run)
 
 ### Implementation Complete ✅
 
 **Changes made**:
 
 ✅ **1. train_hdc.py** (Python training):
-- Line 347: `layer_bit_width=4` → `layer_bit_width=8`
-- Line 3775: `FC_WEIGHT_WIDTH=4` → `FC_WEIGHT_WIDTH=8`
-- Line 560: Updated comment
+- Default `fc_weight_width` set to 6
+- Clamp uses configured width (no longer clipped to 4-bit range)
 
-✅ **2. hdc_classifier.v** (Verilog hardware):
-- Line 87: `FC_WEIGHT_WIDTH=4` → `FC_WEIGHT_WIDTH=8`
+✅ **2. Verilog defaults**:
+- `verilog_params/weight_widths.vh` generated with `FC_WEIGHT_WIDTH_VH=6`
+- `hdc_classifier.v` and `hdc_top.v` consume the generated width macro
 
-✅ **3. README.md** (Documentation):
-- Updated "Latest Run Snapshot" section
-- Shows expected memory: ~70 KB
-- Expected accuracy: 85-95%
+✅ **3. Makefile defaults**:
+- `FC_WEIGHT_WIDTH ?= 6`
 
-✅ **4. Memory calculations**:
-- FC weights: 64 outputs × 1024 inputs × 8 bits = 524,288 bits (64 KB)
-- Previous: 262,144 bits (32 KB)
-- Increase: +32 KB
-- Total expected: ~70 KB
-
-✅ **5. FC clamp fix (2026-02-05)**:
-- `train_hdc.py`: FC weight clamp range updated from `[-8, 7]` to `[-128, 127]`
-- Ensures 8-bit weights are actually used during quantization
-
-✅ **6. Default parameter consistency (2026-02-05)**:
-- Aligned defaults across `train_hdc.py`, `hdc_classifier.v`, `hdc_classifier_tb.v`, `hdc_top.v`, and `makefile`
-- Defaults now match: `NUM_CLASSES=2`, `IMAGE_SIZE=32`, `HV_DIM=5000`, `NUM_FEATURES=64`, `ENCODING_LEVELS=4`,
-  `PIXEL_WIDTH=8`, `PROJ_WEIGHT_WIDTH=4`, `ENABLE_ONLINE_LEARNING=1`, `USE_PER_FEATURE_THRESHOLDS=1`
+✅ **4. Documentation**:
+- README.md and current_state.md updated to reflect 6-bit default and ~55 KB memory
 
 **Ready to test**:
 ```bash
-make clean && make manufacturing_lfsr 2>&1 | tee output_8bit
+make clean && make manufacturing_lfsr 2>&1 | tee output_6bit
 ```
 
 **Expected results**:
-- Class 1 accuracy: 85-95% (improved from 46-58%)
-- Both Python and Verilog: Balanced performance
-- Hamming distances: More variety (not 56% at distance=0)
+- ~96% accuracy on saved 200-image set
+- Balanced per-class accuracy
+- No Python/Verilog disagreements
 
 ### Alternative Options (if memory is critical)
 
-**Option A: Partial restoration** (50-60 KB target)
+**Option A: Mild reduction** (~50 KB target)
 - Keep NUM_FEATURES=64
-- Increase HV_DIM to 7000 (not 10000)
-- Use 8-bit FC weights
-- Expected: 80-90% accuracy
+- Reduce HV_DIM (e.g., 4000-4500)
+- Keep 6-bit FC weights
+- Accuracy impact: TBD (needs validation)
 
-**Option B: Full restoration** (136 KB)
+**Option B: Full accuracy** (136 KB)
 - NUM_FEATURES=128
 - HV_DIM=10000
 - 8-bit FC weights
 - Proven: 96.5% accuracy
 
 **Option C: Further optimization later**
-- Start with 8-bit FC weights (70 KB)
-- Verify it works (85-95% accuracy)
-- Then explore reducing back to 6-bit or 5-bit weights
-- Find minimum bit width that maintains accuracy
+- Try 5-bit FC weights or reduced projection width
+- Validate on saved 200-image set, then full 2000-image set
 
 ### Files to Modify
 
-**For 8-bit FC weight restoration**:
+**For FC weight width changes (e.g., 8-bit)**:
 1. **train_hdc.py**: FC weight quantization bit width
 2. **hdc_classifier.v**: FC_WEIGHT_WIDTH parameter
 3. **makefile**: Ensure correct parameter propagation
@@ -184,7 +168,7 @@ make clean && make manufacturing_lfsr 2>&1 | tee output_8bit
 1. **Verilog is correct** - Verified through feature matching and outperforms Python
 2. **Per-class thresholds don't solve feature overlap** - Attempted fix made things worse
 3. **4-bit FC weights are too aggressive** - Create overlapping feature distributions
-4. **8-bit FC weights are proven** - Previous configuration achieved 96.5% accuracy
+4. **6-bit FC weights are proven** - Latest run achieved 96.5% accuracy (8-bit also proven)
 5. **The problem is CNN feature extraction**, not HDC encoding or Verilog implementation
 
 ### What We Tried (and why it failed)
@@ -197,7 +181,7 @@ make clean && make manufacturing_lfsr 2>&1 | tee output_8bit
 
 ### Key Metrics
 
-**Current state (4-bit FC weights, per-class thresholds)**:
+**Legacy state (4-bit FC weights, per-class thresholds)**:
 ```
 Python:  79.10% (Class 0: 100%, Class 1: 58.2%)
 Verilog: 73.00% (Class 0: 100%, Class 1: 46.0%)
@@ -205,12 +189,11 @@ Memory:  38 KB
 Hamming: 56.5% of images distance=0 to Class 0 (perfect match)
 ```
 
-**Target state (8-bit FC weights)**:
+**Current state (6-bit FC weights)**:
 ```
-Python:  85-95% (Class 0: 90-97%, Class 1: 85-95%)
-Verilog: 85-95% (Class 0: 90-97%, Class 1: 85-95%)
-Memory:  70 KB (+32 KB)
-Hamming: Varied distances, <10% perfect matches
+Python/Verilog: 96.5% (Class 0: 97%, Class 1: 96%)
+Memory:  ~55 KB (+17 KB vs 4-bit)
+Hamming: Varied distances, no Python/Verilog mismatches on saved set
 ```
 
 ### Code Changes Made (Per-Class Threshold Attempt)
@@ -220,7 +203,7 @@ Hamming: Varied distances, <10% perfect matches
 - Line 1918: Always use per-feature thresholds (removed `if level <= 2`)
 - Lines ~1568-1582: Debug output for threshold validation
 
-**Status**: Code changes remain in place but don't solve the problem. Can be reverted or kept (won't hurt with 8-bit FC weights).
+**Status**: Code changes remain in place but don't solve the problem. Can be reverted or kept (won't hurt with 6-8 bit FC weights).
 
 ### Quick Resume Commands
 
@@ -229,13 +212,18 @@ Hamming: Varied distances, <10% perfect matches
 grep "FC_WEIGHT_WIDTH\|FC_BIAS_WIDTH" train_hdc.py hdc_classifier.v makefile
 ```
 
-**Test 8-bit FC weights**:
+**Test default 6-bit FC weights**:
 ```bash
-# 1. Update FC_WEIGHT_WIDTH=8 in train_hdc.py and hdc_classifier.v
-# 2. Run:
-make clean && make manufacturing_lfsr 2>&1 | tee output_8bit
+make clean && make manufacturing_lfsr 2>&1 | tee output_6bit
 
-# 3. Verify improvement:
+grep "Per-Class Accuracy:" output_6bit
+grep "Final Accuracy:" output_6bit
+```
+
+**Test 8-bit FC weights (optional)**:
+```bash
+make clean && make manufacturing_lfsr FC_WEIGHT_WIDTH=8 2>&1 | tee output_8bit
+
 grep "Per-Class Accuracy:" output_8bit
 grep "Final Accuracy:" output_8bit
 ```
@@ -514,8 +502,8 @@ When DEBUG_CNN defined, prints:
 3. Check ENCODING_LEVELS matches between Python and Verilog
 
 ### If memory layout errors
-1. Verify TOTAL_BITS = 311,473 in simulation output
-2. Check HV_START = 281,472 (for LFSR mode)
+1. Verify TOTAL_BITS = 442,545 in simulation output
+2. Check HV_START = 412,544 (for LFSR mode)
 3. Ensure testbench loaded all bits successfully
 
 ## Important Notes
@@ -531,10 +519,12 @@ This debugging session identified and fixed a subtle bug introduced when FC laye
 
 ## TODO / Next Experiments
 
-- Try **FC_WEIGHT_WIDTH=6** as a memory/accuracy tradeoff (between 4-bit and 8-bit).
 - Re-check per-class accuracy on the full 2000-image test set after the latest threshold changes.
-- Consider additional memory-reduction methods (e.g., HV_DIM, projection width, compression, LFSR-only configs).
+- Consider additional memory-reduction methods (e.g., lower FC width to 5-bit, HV_DIM, projection width, compression, LFSR-only configs).
+- Fix OpenROAD constant-function error in `hdc_classifier.v` and re-verify full synthesizability across the Verilog.
 
 ## Recent Changes (2026-02-05)
+- **Set default FC weight width to 6-bit** across Makefile/Python/docs; verified 96.5% accuracy and 100% Python/Verilog agreement on saved 200-image set.
 - **FC_WEIGHT_WIDTH now configurable** via Makefile and Python (`--fc_weight_width`), with testbench consuming generated width macros.
+- **Removed legacy `WEIGHT_WIDTH` and unused RTL scale parameters** from `hdc_classifier.v`/`hdc_top.v`; defaults and docs aligned across Verilog, Makefile, and Python.
 - Python logs active FC weight width at startup.

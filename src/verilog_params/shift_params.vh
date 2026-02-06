@@ -1,5 +1,5 @@
 // Auto-generated shift parameters from Python training
-// Generated at: 2026-02-05 14:12:07.755219
+// Generated at: 2026-02-05 15:24:04.082141
 
 // Shift values determined by profiling actual data to prevent overflow
 // while preserving as much precision as possible
@@ -7,15 +7,15 @@
 `define PIXEL_SHIFT_OVERRIDE 0
 `define CONV1_SHIFT_OVERRIDE 7
 `define CONV2_SHIFT_OVERRIDE 6
-`define FC_SHIFT_OVERRIDE 10
+`define FC_SHIFT_OVERRIDE 8
 
 // Expected FC output statistics after shifting
-`define FC_95_PERCENTILE 5546777.200000
+`define FC_95_PERCENTILE 1286080.050000
 
 // Quantization scales used during training
 `define CONV1_WEIGHT_SCALE 512.0
 `define CONV2_WEIGHT_SCALE 1.0
-`define FC_WEIGHT_SCALE 32.0
+`define FC_WEIGHT_SCALE 8.0
 
 // Bias rescaling parameters for all layers
 // Python rescales biases during forward pass: rescaled_bias = bias * (weight_scale / bias_scale)
@@ -30,13 +30,13 @@
 `define CONV2_BIAS_RESCALE_MULT 1
 `define CONV2_BIAS_RESCALE_SHIFT 0
 
-// FC weight_scale/bias_scale = 32.0/64.0 = 0.500
-// Hardware approximation: multiply by 1 and shift right by 1 (1/2 = 0.500)
+// FC weight_scale/bias_scale = 8.0/64.0 = 0.125
+// Hardware approximation: multiply by 1 and shift right by 3 (1/8 = 0.125)
 `define FC_BIAS_RESCALE_MULT 1
-`define FC_BIAS_RESCALE_SHIFT 1
+`define FC_BIAS_RESCALE_SHIFT 3
 
 // For HDC encoding normalization
-`define GLOBAL_FEAT_MAX_SCALED 32034
+`define GLOBAL_FEAT_MAX_SCALED 30576
 
 // Min-max normalization encoding (adaptive per image)
 `define USE_MINMAX_ENCODING

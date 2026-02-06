@@ -63,6 +63,9 @@
 //
 //======================================================================================
 
+// Auto-generated CNN weight widths from Python training
+`include "verilog_params/weight_widths.vh"
+
 module hdc_classifier #(
     //==================================================================================
     // IMAGE PARAMETERS
@@ -82,23 +85,10 @@ module hdc_classifier #(
     //==================================================================================
     // WEIGHT BIT WIDTHS (Quantization precision)
     //==================================================================================
-    parameter CONV1_WEIGHT_WIDTH = 12,     // Conv1 weight/bias precision (12-bit signed)
-    parameter CONV2_WEIGHT_WIDTH = 10,     // Conv2 weight/bias precision (10-bit signed)
-    parameter FC_WEIGHT_WIDTH = 8,         // FC weight precision (8-bit for 70KB, better accuracy, 2026-02-04)
-    parameter FC_BIAS_WIDTH = 8,           // FC bias precision (8-bit for accuracy, 2026-02-03)
-    parameter WEIGHT_WIDTH = 16,           // General weight precision (16-bit signed)
-
-    //==================================================================================
-    // QUANTIZATION SCALES (Fixed-point scaling factors)
-    // These are reciprocals of quantization step sizes
-    // Higher scale = finer quantization, larger dynamic range
-    //==================================================================================
-    parameter CONV1_WEIGHT_SCALE = 512,    // Conv1 weight scale factor (Q9.3 format)
-    parameter CONV1_BIAS_SCALE = 512,      // Conv1 bias scale factor
-    parameter CONV2_WEIGHT_SCALE = 128,    // Conv2 weight scale factor (Q7.3 format)
-    parameter CONV2_BIAS_SCALE = 128,      // Conv2 bias scale factor
-    parameter FC_WEIGHT_SCALE = 32,        // FC weight scale factor (Q5.3 format)
-    parameter FC_BIAS_SCALE = 32,          // FC bias scale factor
+    parameter CONV1_WEIGHT_WIDTH = `CONV1_WEIGHT_WIDTH_VH, // Conv1 weight/bias precision (from training)
+    parameter CONV2_WEIGHT_WIDTH = `CONV2_WEIGHT_WIDTH_VH, // Conv2 weight/bias precision (from training)
+    parameter FC_WEIGHT_WIDTH = `FC_WEIGHT_WIDTH_VH,       // FC weight precision (from training)
+    parameter FC_BIAS_WIDTH = `FC_BIAS_WIDTH_VH,           // FC bias precision (from training)
 
     //==================================================================================
     // CNN ARCHITECTURE PARAMETERS

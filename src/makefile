@@ -129,23 +129,23 @@ endif
 DATASET ?=
 NUM_CLASSES = 2
 IMAGE_SIZE = 32
-HV_DIM=5000  # Reduced from 10000 to 5000 for memory optimization (2026-02-02: 36KB config)
-NUM_FEATURES=64  # FC layer outputs: 64 for memory-opt (36KB), 128 for high-acc (136KB), 2026-02-02
-FC_WEIGHT_WIDTH ?= 8  # FC weight width in bits (default: 8)
+HV_DIM=5000  # Default hypervector dimension (memory-optimized)
+NUM_FEATURES=64  # Default FC layer outputs (memory-optimized)
+FC_WEIGHT_WIDTH ?= 6  # FC weight width in bits (default: 6)
 TEST_SPLIT = 0.2
-EPOCHS = 75  # Increased from 50 to 75 for better QAT convergence
+EPOCHS = 75  # Default training epochs
 BATCH_SIZE = 64
 NUM_TEST_IMAGES = 200
 SAMPLES_PER_CLASS = 5000  # Increased from 2000 to 4000 for more training data
 ENCODING_LEVELS = 4  # Increased from 3 to 4 for finer feature granularity (2026-02-01)
 PIXEL_WIDTH = 8   # Pixel width in bits for hardware implementation (auto-detected from data)
 ARITHMETIC_MODE = integer  # Options: float, integer (default: integer for hardware accuracy)
-USE_LEARNED_PROJECTION = 0  # Use learned projection matrix for better accuracy (default: enabled)
+USE_LEARNED_PROJECTION = 0  # Use learned projection matrix for better accuracy (default: disabled)
 USE_RANDOM_PROJECTION = 0  # Use random projection (Johnson-Lindenstrauss) - fallback if learned fails
-HDC_EPOCHS = 20  # Increased from 20 to 40 to match CNN training
+HDC_EPOCHS = 20  # Epochs for learned projection training
 QAT_EPOCHS = 0  # Number of epochs for QAT (0 = auto mode: float training first 20 epochs, then QAT)
 QAT_FUSE_BN ?= 0  # Fuse batch norm into conv weights when enabling QAT (0=disabled, 1=enabled)
-ONLINE_LEARNING ?= 1  # Enable online learning during test evaluation (changed from 0 to 1, 2026-02-01)
+ONLINE_LEARNING ?= 1  # Enable online learning during test evaluation (default: enabled)
 USE_PER_FEATURE_THRESHOLDS ?= 1  # Use per-feature HDC thresholds in Python (0=global thresholds)
 SEED ?= 42  # Random seed for reproducibility (can be changed for variety)
 DEBUG_PIPELINE ?= 0  # Enable extra pipeline diagnostics in Python
@@ -533,10 +533,10 @@ gen_test_data:
 	@echo "    # FC weights and bias - size depends on pooled dimensions" >> gen_test_data.py
 	@echo "    pool_size = $(IMAGE_SIZE) // 4  # After 2 pooling layers" >> gen_test_data.py
 	@echo "    fc_input_size = 16 * pool_size * pool_size" >> gen_test_data.py
-	@echo "    for i in range(128 * fc_input_size + 128):" >> gen_test_data.py
+	@echo "    for i in range($(NUM_FEATURES) * fc_input_size + $(NUM_FEATURES)):" >> gen_test_data.py
 	@echo "        f.write(f'{np.random.randint(0, 256)}\\n')" >> gen_test_data.py
 	@echo "    # Projection matrix" >> gen_test_data.py
-	@echo "    for i in range(128 * $(HV_DIM)):" >> gen_test_data.py
+	@echo "    for i in range($(NUM_FEATURES) * ($(ENCODING_LEVELS) - 1) * $(HV_DIM)):" >> gen_test_data.py
 	@echo "        f.write(f'{np.random.randint(0, 2)}\\n')" >> gen_test_data.py
 	@echo "    # Hypervectors" >> gen_test_data.py
 	@echo "    for i in range($(NUM_CLASSES) * $(HV_DIM)):" >> gen_test_data.py
@@ -648,13 +648,13 @@ help:
 	@echo "  VERILOG_SIM     - Simulator (iverilog/vcs/xcelium, default: iverilog)"
 	@echo "  DEBUG           - Enable debug messages (DEBUG=1, default: 0)"
 	@echo "  DETAILED        - Enable detailed debug dumps (DETAILED=1, default: 0)"
-	@echo "  NUM_CLASSES     - Number of classes (default: 10)"
+	@echo "  NUM_CLASSES     - Number of classes (default: 2)"
 	@echo "  NUM_CLUSTERS    - Number of clusters for xray (default: 10)"
 	@echo "  IMAGE_SIZE      - Image size (default: 32, MNIST: 28, Caltech: 64)"
-	@echo "  HV_DIM          - Hypervector dimension (default: 10000)"
-	@echo "  EPOCHS          - Training epochs (default: 40)"
+	@echo "  HV_DIM          - Hypervector dimension (default: 5000)"
+	@echo "  EPOCHS          - Training epochs (default: 75)"
 	@echo "  BATCH_SIZE      - Batch size (default: 64)"
-	@echo "  ONLINE_LEARNING - Enable online learning (0=disabled, 1=enabled, default: 0)"
+	@echo "  ONLINE_LEARNING - Enable online learning (0=disabled, 1=enabled, default: 1)"
 	@echo "  USE_PER_FEATURE_THRESHOLDS - Use per-feature HDC thresholds in Python/Verilog (0=global, 1=per-feature)"
 	@echo "  QAT_FUSE_BN     - Fuse batch norm when enabling QAT (0=disabled, 1=enabled, default: 0)"
 	@echo ""
@@ -684,8 +684,8 @@ check_files:
 	@echo "Checking generated files:"
 	@if [ -f $(WEIGHTS_FILE) ]; then \
 		fc_size=$$((16 * ($(IMAGE_SIZE) / 4) * ($(IMAGE_SIZE) / 4))); \
-		total_cnn_weights=$$((8*1*3*3 + 8 + 16*8*3*3 + 16 + 128*$$fc_size + 128)); \
-		expected_lines=$$((3 + $$total_cnn_weights + 128*$(HV_DIM) + $(NUM_CLASSES)*$(HV_DIM))); \
+		total_cnn_weights=$$((8*1*3*3 + 8 + 16*8*3*3 + 16 + $(NUM_FEATURES)*$$fc_size + $(NUM_FEATURES))); \
+		expected_lines=$$((3 + $$total_cnn_weights + $(NUM_FEATURES)*($(ENCODING_LEVELS)-1)*$(HV_DIM) + $(NUM_CLASSES)*$(HV_DIM))); \
 		echo "  $(WEIGHTS_FILE): $$(wc -l < $(WEIGHTS_FILE)) lines"; \
 		echo "  Expected lines: $$expected_lines"; \
 		echo "  FC input size: $$fc_size"; \
