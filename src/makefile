@@ -122,6 +122,13 @@ DEBUG_FLAGS += -DDEBUG_ONLINE_LEARNING
 DEBUG_FLAGS_VCS += +define+DEBUG_ONLINE_LEARNING
 endif
 
+# Optional: Reduce per-image testbench output (faster sims, smaller logs)
+QUIET_RESULTS ?= 0
+ifeq ($(QUIET_RESULTS),1)
+DEBUG_FLAGS += -DQUIET_RESULTS
+DEBUG_FLAGS_VCS += +define+QUIET_RESULTS
+endif
+
 # Include Python-generated shift parameters if available
 SHIFT_PARAMS_FILE = verilog_params/shift_params.vh
 ifneq ($(wildcard $(SHIFT_PARAMS_FILE)),)
@@ -154,6 +161,7 @@ HDC_EPOCHS = 20  # Epochs for learned projection training
 QAT_EPOCHS = 0  # Number of epochs for QAT (0 = auto mode: float training first 20 epochs, then QAT)
 QAT_FUSE_BN ?= 0  # Fuse batch norm into conv weights when enabling QAT (0=disabled, 1=enabled)
 ONLINE_LEARNING ?= 1  # Enable online learning during test evaluation (default: enabled)
+ONLINE_LEARNING_IF_CONFIDENCE_HIGH ?= 0  # Only update when confidence is high (~>=90%, no division)
 USE_PER_FEATURE_THRESHOLDS ?= 1  # Use per-feature HDC thresholds in Python (0=global thresholds)
 SEED ?= 42  # Random seed for reproducibility (can be changed for variety)
 DEBUG_PIPELINE ?= 0  # Enable extra pipeline diagnostics in Python
@@ -420,6 +428,7 @@ endif
 		$(if $(filter 1,$(USE_LEARNED_PROJECTION)),--use_learned_projection) \
 		$(if $(filter 1,$(USE_LEARNED_PROJECTION)),--hdc_epochs $(HDC_EPOCHS)) \
 		$(if $(filter 1,$(ONLINE_LEARNING)),--enable_online_learning) \
+		--online_learning_if_confidence_high $(ONLINE_LEARNING_IF_CONFIDENCE_HIGH) \
 		$(if $(filter 1,$(USE_PER_FEATURE_THRESHOLDS)),--use_per_feature_thresholds) \
 		$(if $(filter 1,$(UNLABELED)),--unlabeled) \
 		$(if $(filter 1,$(UNLABELED)),--data_dirs $(XRAY_DIRS)) \
@@ -462,6 +471,7 @@ ifeq ($(VERILOG_SIM),iverilog)
 			-DNUM_FEATURES_ARG=$(NUM_FEATURES) -DNUM_TEST_IMAGES=$(NUM_TEST_IMAGES) \
 			-DPROJ_WEIGHT_WIDTH_ARG=$(PROJ_WEIGHT_WIDTH) -DENCODING_LEVELS_ARG=$(ENCODING_LEVELS) \
 			-DENABLE_ONLINE_LEARNING_ARG=$(ONLINE_LEARNING) -DUSE_PER_FEATURE_THRESHOLDS_ARG=$(USE_PER_FEATURE_THRESHOLDS) \
+			-DONLINE_LEARNING_IF_CONFIDENCE_HIGH_ARG=$(ONLINE_LEARNING_IF_CONFIDENCE_HIGH) \
 			-DUSE_LFSR_PROJECTION_ARG=$(USE_LFSR_PROJECTION) \
 			-DDATASET_NAME=\"$(DATASET)\" \
 			$(DEBUG_FLAGS) -DINCLUDE_SHIFT_PARAMS $(DPI_FLAGS) $(WAVE_FLAGS) $(SKIP_FLAGS) \
@@ -472,6 +482,7 @@ ifeq ($(VERILOG_SIM),iverilog)
 			-DNUM_FEATURES_ARG=$(NUM_FEATURES) -DNUM_TEST_IMAGES=$(NUM_TEST_IMAGES) \
 			-DPROJ_WEIGHT_WIDTH_ARG=$(PROJ_WEIGHT_WIDTH) -DENCODING_LEVELS_ARG=$(ENCODING_LEVELS) \
 			-DENABLE_ONLINE_LEARNING_ARG=$(ONLINE_LEARNING) -DUSE_PER_FEATURE_THRESHOLDS_ARG=$(USE_PER_FEATURE_THRESHOLDS) \
+			-DONLINE_LEARNING_IF_CONFIDENCE_HIGH_ARG=$(ONLINE_LEARNING_IF_CONFIDENCE_HIGH) \
 			-DUSE_LFSR_PROJECTION_ARG=$(USE_LFSR_PROJECTION) \
 			-DDATASET_NAME=\"$(DATASET)\" \
 			$(DEBUG_FLAGS) $(DPI_FLAGS) $(WAVE_FLAGS) $(SKIP_FLAGS) \
@@ -482,6 +493,8 @@ else ifeq ($(VERILOG_SIM),vcs)
 		+define+NUM_CLASSES_ARG=$(NUM_CLASSES) +define+HV_DIM_ARG=$(HV_DIM) +define+PIXEL_WIDTH_ARG=$(PIXEL_WIDTH) \
 		+define+NUM_FEATURES_ARG=$(NUM_FEATURES) +define+NUM_TEST_IMAGES=$(NUM_TEST_IMAGES) \
 		+define+PROJ_WEIGHT_WIDTH_ARG=$(PROJ_WEIGHT_WIDTH) \
+		+define+ENABLE_ONLINE_LEARNING_ARG=$(ONLINE_LEARNING) \
+		+define+ONLINE_LEARNING_IF_CONFIDENCE_HIGH_ARG=$(ONLINE_LEARNING_IF_CONFIDENCE_HIGH) \
 		+define+USE_PER_FEATURE_THRESHOLDS_ARG=$(USE_PER_FEATURE_THRESHOLDS) \
 		+define+USE_LFSR_PROJECTION_ARG=$(USE_LFSR_PROJECTION) \
 		+define+DATASET_NAME=\"$(DATASET)\" \
@@ -492,6 +505,8 @@ else ifeq ($(VERILOG_SIM),xcelium)
 		-define NUM_CLASSES_ARG=$(NUM_CLASSES) -define HV_DIM_ARG=$(HV_DIM) -define PIXEL_WIDTH_ARG=$(PIXEL_WIDTH) \
 		-define NUM_FEATURES_ARG=$(NUM_FEATURES) -define NUM_TEST_IMAGES=$(NUM_TEST_IMAGES) \
 		-define PROJ_WEIGHT_WIDTH_ARG=$(PROJ_WEIGHT_WIDTH) \
+		-define ENABLE_ONLINE_LEARNING_ARG=$(ONLINE_LEARNING) \
+		-define ONLINE_LEARNING_IF_CONFIDENCE_HIGH_ARG=$(ONLINE_LEARNING_IF_CONFIDENCE_HIGH) \
 		-define USE_PER_FEATURE_THRESHOLDS_ARG=$(USE_PER_FEATURE_THRESHOLDS) \
 		-define USE_LFSR_PROJECTION_ARG=$(USE_LFSR_PROJECTION) \
 		-define DATASET_NAME=\"$(DATASET)\" \
@@ -658,8 +673,10 @@ help:
 	@echo "  EPOCHS          - Training epochs (default: 75)"
 	@echo "  BATCH_SIZE      - Batch size (default: 64)"
 	@echo "  ONLINE_LEARNING - Enable online learning (0=disabled, 1=enabled, default: 1)"
+	@echo "  ONLINE_LEARNING_IF_CONFIDENCE_HIGH - Only update when confidence is high (~>=90%, default: 0)"
 	@echo "  USE_PER_FEATURE_THRESHOLDS - Use per-feature HDC thresholds in Python/Verilog (0=global, 1=per-feature)"
 	@echo "  QAT_FUSE_BN     - Fuse batch norm when enabling QAT (0=disabled, 1=enabled, default: 0)"
+	@echo "  QUIET_RESULTS   - Reduce per-image testbench output (0/1, default: 0)"
 	@echo ""
 	@echo "Examples:"
 	@echo "  make quickdraw              # QuickDraw dataset (10 classes)"

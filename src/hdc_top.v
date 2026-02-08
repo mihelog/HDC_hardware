@@ -61,6 +61,7 @@ module hdc_top #(
     parameter ENABLE_ONLINE_LEARNING = 1,            // Enable online learning (0=off, 1=on)
                                                      // This parameter enables OL logic synthesis
                                                      // Actual OL enable controlled by config bit
+    parameter ONLINE_LEARNING_IF_CONFIDENCE_HIGH = 0, // 1=only update at high confidence (~>=90%)
     parameter CLASS_WIDTH = $clog2(NUM_CLASSES),     // Bits to encode class ID (auto-calculated)
 
     //==================================================================================
@@ -171,6 +172,7 @@ hdc_classifier #(
     .FC_WEIGHT_WIDTH(FC_WEIGHT_WIDTH),
     .FC_BIAS_WIDTH(FC_BIAS_WIDTH),
     .ENABLE_ONLINE_LEARNING(ENABLE_ONLINE_LEARNING),
+    .ONLINE_LEARNING_IF_CONFIDENCE_HIGH(ONLINE_LEARNING_IF_CONFIDENCE_HIGH),
     .PARALLEL_PROJ(PARALLEL_PROJ),
     .PARALLEL_CONV1(PARALLEL_CONV1),
     .PARALLEL_CONV2(PARALLEL_CONV2),

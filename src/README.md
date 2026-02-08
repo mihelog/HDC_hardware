@@ -676,6 +676,7 @@ make manufacturing_verilog_only
 - `TEST_SPLIT=0.2` - Test set fraction
 - `NUM_TEST_IMAGES=200` - Images saved for Verilog
 - `ONLINE_LEARNING=1` - Enable online learning (0/1)
+- `ONLINE_LEARNING_IF_CONFIDENCE_HIGH=0` - Only update when confidence is high (~>=90%, 0/1)
 - `ARITHMETIC_MODE=integer` - integer or float
 - `QAT_FUSE_BN=0` - Fuse batch norm weights when enabling QAT (0/1)
 
@@ -1924,6 +1925,9 @@ end
 - **Synthesis-time parameter**: `ENABLE_ONLINE_LEARNING` (0 or 1)
   - When 0: Online learning logic is completely removed during synthesis (saves area)
   - When 1: Online learning logic is included, but can be enabled/disabled at runtime
+- **Synthesis-time parameter**: `ONLINE_LEARNING_IF_CONFIDENCE_HIGH` (0 or 1)
+  - When 0: Use legacy threshold (confidence >= 8/15) for updates
+  - When 1: Only update when confidence is high (>=14/15, ~93%); implemented as a bit-mask threshold (no division)
 - **Configuration bit** (last bit in configuration stream):
   - Loaded with the rest of the configuration data
   - 0 = Online learning disabled at runtime
@@ -1978,6 +1982,7 @@ Higher parallelism = faster but larger area.
 - `ENABLE_ONLINE_LEARNING` (default: 1) - Enable/disable online learning logic synthesis
   - When 0: Online learning logic completely removed (saves area)
   - When 1: Online learning logic included; runtime control via config bit
+- `ONLINE_LEARNING_IF_CONFIDENCE_HIGH` (default: 0) - Only update when confidence is high (~>=14/15)
 
 ---
 
@@ -2387,6 +2392,7 @@ The `train_hdc.py` script accepts the following arguments (parsed in `train_syst
 - `--arithmetic_mode` - integer or float (default: integer)
 - `--enable_online_learning` - Enable online learning (default: True)
 - `--disable_online_learning` - Disable online learning (default: False)
+- `--online_learning_if_confidence_high` - Only update when confidence is high (~>=14/15, default: 0)
 - `--use_per_feature_thresholds` - Enable per-feature thresholds (default: True)
 - `--disable_per_feature_thresholds` - Disable per-feature thresholds (default: False)
 - `--debug_pipeline` - Enable extra pipeline diagnostics (default: False)
@@ -2439,6 +2445,7 @@ USE_LFSR_PROJECTION ?= 0      # 1 = on-the-fly LFSR projection (78% memory reduc
 TEST_SPLIT ?= 0.2             # Test set fraction
 NUM_TEST_IMAGES ?= 200        # Images saved for Verilog
 ONLINE_LEARNING ?= 1          # Enable online learning
+ONLINE_LEARNING_IF_CONFIDENCE_HIGH ?= 0  # Only update when confidence is high (~>=90%)
 ARITHMETIC_MODE ?= integer    # Integer arithmetic mode
 ```
 

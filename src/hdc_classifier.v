@@ -100,6 +100,7 @@ module hdc_classifier #(
     //==================================================================================
     parameter HDC_PROJ_WEIGHT_WIDTH = 4,   // Projection weight bit width (4-bit signed)
     parameter ENABLE_ONLINE_LEARNING = 1,  // Enable online learning (changed from 0 to 1, 2026-02-01)
+    parameter ONLINE_LEARNING_IF_CONFIDENCE_HIGH = 0, // 1=only update at high confidence (~>=90%), 0=legacy threshold
     parameter ENCODING_LEVELS = 4,         // HDC encoding levels (increased from 3 to 4, 2026-02-01)
     parameter USE_ADAPTIVE_THRESHOLDS = 0, // 1=per-image min/max thresholds, 0=use thresholds from file (matches Python training)
     parameter USE_PER_FEATURE_THRESHOLDS = 1, // Use per-feature thresholds (changed from 0 to 1, 2026-02-01)
@@ -332,6 +333,16 @@ reg [$clog2(TOTAL_BITS)-1:0] load_counter;  // Tracks position during serial loa
 // Extracted once loading is complete
 //======================================================================================
 reg online_learning_enable_reg;  // Internal storage for OL enable bit
+
+// Online learning confidence gating
+// - Base threshold (legacy): confidence >= 8/15
+// - High-confidence mode: confidence has all 1s except the LSB bit (e.g., 0xE for 4-bit)
+localparam integer ONLINE_CONFIDENCE_LSB_BITS = 1; // 1 -> ~93% for 4-bit confidence (14/15)
+localparam [HDC_CONF_WIDTH-1:0] ONLINE_CONFIDENCE_HIGH_THRESH =
+    ({HDC_CONF_WIDTH{1'b1}} & ~((1 << ONLINE_CONFIDENCE_LSB_BITS) - 1));
+localparam [HDC_CONF_WIDTH-1:0] ONLINE_CONFIDENCE_BASE_THRESH = HDC_CONF_WIDTH'(8);
+localparam [HDC_CONF_WIDTH-1:0] ONLINE_CONFIDENCE_UPDATE_THRESH =
+    (ONLINE_LEARNING_IF_CONFIDENCE_HIGH != 0) ? ONLINE_CONFIDENCE_HIGH_THRESH : ONLINE_CONFIDENCE_BASE_THRESH;
 
 //======================================================================================
 // ACCESSOR FUNCTIONS (Extract configuration data from loaded_data_mem)
@@ -1588,7 +1599,8 @@ reg online_learning_enable_reg;  // Internal storage for OL enable bit
         if (!reset_b) begin ol_state<=0; ol_we<=0; ol_addr<=0; ol_data<=0; ol_idx<=0; lfsr<=16'hACE1; end
         else if (ENABLE_ONLINE_LEARNING) begin
             case(ol_state)
-                0: if (valid_s17 && online_learning_enable_reg && loading_complete && confidence >= 8) begin
+                0: if (valid_s17 && online_learning_enable_reg && loading_complete &&
+                       confidence >= ONLINE_CONFIDENCE_UPDATE_THRESH) begin
                      ol_state<=1; ol_idx<=0; ol_we<=0;
                    end
                 1: begin

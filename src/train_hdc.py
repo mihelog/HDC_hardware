@@ -19,6 +19,21 @@ from pathlib import Path
 from datetime import datetime
 import h5py
 
+# Online learning confidence gating (matches Verilog)
+HDC_CONF_WIDTH = 4
+ONLINE_LEARNING_BASE_CONF_INT = 8  # Legacy threshold: confidence >= 8/15
+ONLINE_LEARNING_HIGH_LSB_BITS = 1  # High-confidence threshold: all 1s except 1 LSB (e.g., 14/15)
+
+def get_online_learning_confidence_threshold_int(high_only):
+    max_conf = (1 << HDC_CONF_WIDTH) - 1
+    if high_only:
+        return max_conf & ~((1 << ONLINE_LEARNING_HIGH_LSB_BITS) - 1)
+    return ONLINE_LEARNING_BASE_CONF_INT
+
+def get_online_learning_min_confidence(high_only):
+    max_conf = (1 << HDC_CONF_WIDTH) - 1
+    return get_online_learning_confidence_threshold_int(high_only) / max_conf
+
 class SimpleCNN(nn.Module):
     def __init__(self, num_features=64, input_size=32, in_channels=1):
         super(SimpleCNN, self).__init__()
@@ -1420,7 +1435,7 @@ class HDCClassifier:
     #   num_features: Number of input features (from CNN output).
     #   encoding_levels: Number of levels for feature encoding (1=binary, >1=thermometer).
     def __init__(self, num_classes=2, hv_dim=5000, num_features=64, encoding_levels=4,
-                 use_per_feature_thresholds=True):
+                 use_per_feature_thresholds=True, online_learning_if_confidence_high=False):
         self.num_classes = num_classes
         self.hv_dim = hv_dim
         self.num_features = num_features
@@ -1452,7 +1467,8 @@ class HDCClassifier:
         print(f"  Matrix sparsity: {np.mean(self.random_matrix):.3f}")
 
         # Online learning parameters (matching hardware implementation)
-        self.min_confidence = 8.0 / 15.0  # Only update if confidence >= 8/15
+        self.online_learning_if_confidence_high = bool(online_learning_if_confidence_high)
+        self.min_confidence = get_online_learning_min_confidence(self.online_learning_if_confidence_high)
         self.learning_rate_base = 64
         self.lfsr_state = 0xACE1  # LFSR seed (matches hardware)
         self.class_hvs_accum = {}  # Floating-point accumulators for online learning
@@ -2302,12 +2318,14 @@ class HDCClassifier:
 
 class LearnedHDCClassifier(nn.Module):
     """HDC Classifier with learned projection matrix instead of random"""
-    def __init__(self, num_classes=2, hv_dim=5000, num_features=64, encoding_levels=4):
+    def __init__(self, num_classes=2, hv_dim=5000, num_features=64, encoding_levels=4,
+                 online_learning_if_confidence_high=False):
         super(LearnedHDCClassifier, self).__init__()
         self.num_classes = num_classes
         self.hv_dim = hv_dim
         self.num_features = num_features
         self.encoding_levels = encoding_levels
+        self.online_learning_if_confidence_high = bool(online_learning_if_confidence_high)
         
         # Calculate expanded features (same as base HDC)
         if encoding_levels == 1:
@@ -2536,7 +2554,7 @@ class LearnedHDCClassifier(nn.Module):
             self.lfsr_state = 0xACE1  # Non-zero seed
 
             # Online learning parameters (matching Verilog)
-            self.min_confidence = 8.0 / 15.0  # Only update if confidence >= 8/15
+            self.min_confidence = get_online_learning_min_confidence(self.online_learning_if_confidence_high)
             self.learning_rate_base = 64  # Base learning rate
 
     def _lfsr_step(self):
@@ -2641,7 +2659,8 @@ class LearnedHDCClassifier(nn.Module):
     def to_numpy_hdc(self):
         """Convert to numpy-based HDC for compatibility"""
         # Create base HDC object
-        hdc = HDCClassifier(self.num_classes, self.hv_dim, self.num_features, self.encoding_levels)
+        hdc = HDCClassifier(self.num_classes, self.hv_dim, self.num_features, self.encoding_levels,
+                            online_learning_if_confidence_high=self.online_learning_if_confidence_high)
         
         # Copy learned projection matrix (quantized to integers)
         projection_np = self.projection.detach().cpu().numpy()
@@ -4805,7 +4824,8 @@ def load_weights_from_file(filename='weights_and_hvs.txt'):
 def save_test_images_and_verify(test_dataset, test_loader, cnn, hdc, device,
                                 test_features=None, test_labels=None,
                                 num_images=100, image_size=32, dataset_name='quickdraw', pixel_width=8, fc_shift=None,
-                                test_different_images_in_verilog=False, enable_online_learning=False):
+                                test_different_images_in_verilog=False, enable_online_learning=False,
+                                online_learning_if_confidence_high=0):
     """Save test images and verify they produce same accuracy"""
     
     # CRITICAL: Ensure model is in eval mode
@@ -4977,10 +4997,16 @@ def save_test_images_and_verify(test_dataset, test_loader, cnn, hdc, device,
         saved_images = [all_test_images[i] for i in indices]
     
     # Verify HDC accuracy on saved images
+    hv_drift_counts = None
     if enable_online_learning:
         print("\n[ONLINE LEARNING ENABLED] Using online_update() instead of predict()")
         print("  This will update class hypervectors during evaluation")
         print("  Using predictions for updates to match hardware behavior")
+        conf_max = (1 << HDC_CONF_WIDTH) - 1
+        conf_thresh = get_online_learning_confidence_threshold_int(online_learning_if_confidence_high)
+        conf_pct = 100.0 * conf_thresh / conf_max
+        mode_label = "HIGH" if online_learning_if_confidence_high else "LEGACY"
+        print(f"  Confidence gate ({mode_label}): >= {conf_thresh}/{conf_max} (~{conf_pct:.1f}%)")
 
         # Save original class hypervectors before online learning (copy dictionary of numpy arrays)
         original_class_hvs = {class_id: hv.copy() for class_id, hv in hdc.class_hvs.items()}
@@ -5014,6 +5040,7 @@ def save_test_images_and_verify(test_dataset, test_loader, cnn, hdc, device,
         print("\n" + "="*70)
         print("CLASS HYPERVECTOR CHANGES AFTER ONLINE LEARNING")
         print("="*70)
+        hv_drift_counts = []
         for class_id in range(num_classes):
             # Calculate Hamming distance between original and updated hypervector
             original_hv = original_class_hvs[class_id]
@@ -5024,6 +5051,7 @@ def save_test_images_and_verify(test_dataset, test_loader, cnn, hdc, device,
             percent_changed = (hamming_dist / hdc.hv_dim) * 100.0
 
             print(f"  Class {class_id}: {hamming_dist:5d}/{hdc.hv_dim} bits changed ({percent_changed:5.2f}%)")
+            hv_drift_counts.append((hamming_dist, percent_changed))
         print("="*70)
     else:
         # Use predict() without per-image normalization (which causes 39% accuracy drop)
@@ -5090,6 +5118,11 @@ def save_test_images_and_verify(test_dataset, test_loader, cnn, hdc, device,
     print(f"  Mean: {np.mean(confidences_saved):.3f}")
     print(f"  Min: {np.min(confidences_saved):.3f}")
     print(f"  Max: {np.max(confidences_saved):.3f}")
+
+    if hv_drift_counts is not None:
+        print(f"\nHV Drift Summary (after online learning on saved images):")
+        for class_id, (hamming_dist, percent_changed) in enumerate(hv_drift_counts):
+            print(f"  Class {class_id}: {hamming_dist}/{hdc.hv_dim} bits changed ({percent_changed:.2f}%)")
 
     # Save Verilog-aligned predictions for comparison with hardware
     # Note: Verilog-aligned prediction export happens after weights_and_hvs.txt is generated.
@@ -5238,7 +5271,8 @@ def train_system(dataset_name='quickdraw', num_classes=2, image_size=32,
                  hv_dim=5000, test_split=0.2, epochs=75, batch_size=64,
                  samples_per_class=5000, pixel_width=8, encoding_levels=4, qat_epochs=0,
                  arithmetic_mode='integer', test_different_images_in_verilog=False,
-                 enable_online_learning=True, use_per_feature_thresholds=True,
+                 enable_online_learning=True, online_learning_if_confidence_high=0,
+                 use_per_feature_thresholds=True,
                  unlabeled=False, data_dirs=None, num_clusters=10, quantize_bits=8,
                  proj_weight_width=4, random_seed=42, num_test_images=200,
                  qat_fuse_bn=False, num_features=64, fc_weight_width=6,
@@ -5878,7 +5912,8 @@ def train_system(dataset_name='quickdraw', num_classes=2, image_size=32,
 
         hdc = HDCClassifier(num_classes=num_classes, hv_dim=hv_dim,
                            num_features=num_features, encoding_levels=encoding_levels,
-                           use_per_feature_thresholds=use_per_feature_thresholds)
+                           use_per_feature_thresholds=use_per_feature_thresholds,
+                           online_learning_if_confidence_high=online_learning_if_confidence_high)
 
         # Generate projection matrix using LFSRs — must match Verilog exactly
         print(f"\nGenerating LFSR projection matrix: {hdc.expanded_features}x{hv_dim}")
@@ -5915,7 +5950,8 @@ def train_system(dataset_name='quickdraw', num_classes=2, image_size=32,
         # Create standard HDC with improved random projection
         hdc = HDCClassifier(num_classes=num_classes, hv_dim=hv_dim,
                            num_features=num_features, encoding_levels=encoding_levels,
-                           use_per_feature_thresholds=use_per_feature_thresholds)
+                           use_per_feature_thresholds=use_per_feature_thresholds,
+                           online_learning_if_confidence_high=online_learning_if_confidence_high)
         
         # Generate better random projection matrix using Johnson-Lindenstrauss
         print(f"Generating random projection matrix: {hdc.expanded_features}x{hv_dim}")
@@ -5997,7 +6033,8 @@ def train_system(dataset_name='quickdraw', num_classes=2, image_size=32,
         
         # Create learned HDC classifier
         hdc_learned = LearnedHDCClassifier(num_classes=num_classes, hv_dim=hv_dim,
-                                         num_features=num_features, encoding_levels=encoding_levels)
+                                         num_features=num_features, encoding_levels=encoding_levels,
+                                         online_learning_if_confidence_high=online_learning_if_confidence_high)
         hdc_learned = hdc_learned.to(device)
         
         # Skip global normalization - using per-image normalization to match Verilog
@@ -6141,7 +6178,8 @@ def train_system(dataset_name='quickdraw', num_classes=2, image_size=32,
         # Original random HDC with quantized projection matrix
         hdc = HDCClassifier(num_classes=num_classes, hv_dim=hv_dim,
                            num_features=num_features, encoding_levels=encoding_levels,
-                           use_per_feature_thresholds=use_per_feature_thresholds)
+                           use_per_feature_thresholds=use_per_feature_thresholds,
+                           online_learning_if_confidence_high=online_learning_if_confidence_high)
 
         # CRITICAL FIX: Apply projection weight quantization based on proj_weight_width
         # Default binary {0,1} matrix needs to be replaced with quantized version
@@ -6556,7 +6594,8 @@ def train_system(dataset_name='quickdraw', num_classes=2, image_size=32,
                                             dataset_name=dataset_name, pixel_width=pixel_width,
                                             fc_shift=fc_shift_optimal,
                                             test_different_images_in_verilog=test_different_images_in_verilog,
-                                            enable_online_learning=enable_online_learning)
+                                            enable_online_learning=enable_online_learning,
+                                            online_learning_if_confidence_high=online_learning_if_confidence_high)
 
     # CRITICAL: Restore original class hypervectors before saving to Verilog
     if enable_online_learning:
@@ -6858,6 +6897,8 @@ For more information, see README.md or how_to_run.txt
                             'for adaptive classification.')
     parser.add_argument('--disable_online_learning', dest='enable_online_learning', action='store_false',
                        help='Disable online learning during testing. Default: False (online learning enabled)')
+    parser.add_argument('--online_learning_if_confidence_high', type=int, default=0,
+                       help='Only update class hypervectors when confidence is high (~>=14/15). Default: 0 (use legacy 8/15 threshold).')
     parser.add_argument('--use_per_feature_thresholds', dest='use_per_feature_thresholds', action='store_true', default=True,
                        help='Use per-feature HDC thresholds (Python only). Default: True.')
     parser.add_argument('--disable_per_feature_thresholds', dest='use_per_feature_thresholds', action='store_false',
@@ -6891,6 +6932,7 @@ For more information, see README.md or how_to_run.txt
         arithmetic_mode=args.arithmetic_mode,
         test_different_images_in_verilog=args.test_different_images_in_verilog,
         enable_online_learning=args.enable_online_learning,
+        online_learning_if_confidence_high=args.online_learning_if_confidence_high,
         use_per_feature_thresholds=args.use_per_feature_thresholds,
         unlabeled=args.unlabeled,
         data_dirs=args.data_dirs,

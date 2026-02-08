@@ -198,11 +198,14 @@ reg [IMG_WIDTH*IMG_HEIGHT*PIXEL_WIDTH-1:0] image_data = 0;
 reg data_in = 0;                                       // Serial configuration data bit
 reg write_enable = 0;                                  // Write enable for configuration loading
 
-// Online learning control - set from Makefile ONLINE_LEARNING parameter
+// Online learning control - set from Makefile ONLINE_LEARNING parameters
 `ifndef ENABLE_ONLINE_LEARNING_ARG
     `define ENABLE_ONLINE_LEARNING_ARG 1
 `endif
 reg online_learning_enable = `ENABLE_ONLINE_LEARNING_ARG; // Enable online learning (default: OFF)
+`ifndef ONLINE_LEARNING_IF_CONFIDENCE_HIGH_ARG
+    `define ONLINE_LEARNING_IF_CONFIDENCE_HIGH_ARG 0
+`endif
 
 // --- Output Signals (Driven by DUT) ---
 wire [$clog2(NUM_CLASSES)-1:0] predicted_class;        // Predicted class ID (0 to NUM_CLASSES-1)
@@ -230,6 +233,7 @@ hdc_top #(
     .HDC_CONF_WIDTH(HDC_CONF_WIDTH),
     .CONFIDENCE_LUT_SIZE(`TB_CONFIDENCE_LUT_SIZE),
     .ENABLE_ONLINE_LEARNING(`ENABLE_ONLINE_LEARNING_ARG),
+    .ONLINE_LEARNING_IF_CONFIDENCE_HIGH(`ONLINE_LEARNING_IF_CONFIDENCE_HIGH_ARG),
     .HDC_PROJ_WEIGHT_WIDTH(HDC_PROJ_WEIGHT_WIDTH),
     .ENCODING_LEVELS(ENCODING_LEVELS),
     .USE_PER_FEATURE_THRESHOLDS(USE_PER_FEATURE_THRESHOLDS),
@@ -279,6 +283,10 @@ integer class_confidence_count[0:255];
 
 // Confidence distribution histogram
 integer confidence_histogram[0:15];
+
+// Class HV drift tracking (testbench only)
+reg initial_class_hv[0:255][0:HDC_HV_DIM-1];
+integer hv_drift_count[0:255];
 
 // Loop variable for checksum verification
 integer c;
@@ -701,7 +709,9 @@ task process_image;
     integer pred_class;
 
     begin
+        `ifndef QUIET_RESULTS
         $display("\nProcessing image %d...", img_idx);
+        `endif
 
         // Get the true label
         true_label = test_labels[img_idx];
@@ -768,10 +778,12 @@ task process_image;
                 total_predictions = total_predictions + 1;
 
                 // DEBUG: Print Hamming Distances
+                `ifndef QUIET_RESULTS
                 $display("    Hamming Distances:");
                 for (m = 0; m < NUM_CLASSES; m = m + 1) begin
                    $display("      Class %d: %d", m, dut.hdc_classifier_instance.hamming_distances[m]);
                 end
+                `endif
 
                 // Update class statistics
                 update_class_total(true_label, 1);
@@ -817,28 +829,34 @@ task process_image;
                     if (python_predictions[img_idx] == pred_class) begin
                         // Verilog and Python agree
                         python_verilog_matches = python_verilog_matches + 1;
+                        `ifndef QUIET_RESULTS
                         $display("  Image %10d: Label=%10d, Predicted=%10d, Confidence=%d/15 (%.2f), Latency=%0d cycles, %s [Python agrees: %d]",
                                  img_idx, true_label, pred_class, confidence,
                                  confidence_normalized, image_latency,
                                  (pred_class == true_label) ? "CORRECT" : "  WRONG",
                                  python_predictions[img_idx]);
+                        `endif
                     end else begin
                         // Verilog and Python DISAGREE - this is the key issue!
                         python_verilog_mismatches = python_verilog_mismatches + 1;
+                        `ifndef QUIET_RESULTS
                         $display("  Image %10d: Label=%10d, Verilog=%10d, Python=%10d, Latency=%0d cycles, %s [MISMATCH! Verilog Confidence=%d/15 (%.2f)]",
                                  img_idx, true_label, pred_class, python_predictions[img_idx],
                                  image_latency,
                                  (pred_class == true_label) ? "CORRECT" : "  WRONG",
                                  confidence, confidence_normalized);
+                        `endif
                         `ifdef DEBUG_MISMATCH_DUMP
                             dump_mismatch_debug(img_idx, true_label, pred_class, python_predictions[img_idx], confidence);
                         `endif
                     end
                 end else begin
+                    `ifndef QUIET_RESULTS
                     $display("  Image %10d: Label=%10d, Predicted=%10d, Confidence=%d/15 (%.2f), Latency=%0d cycles, %s",
                              img_idx, true_label, pred_class, confidence,
                              confidence_normalized, image_latency,
                              (pred_class == true_label) ? "CORRECT" : "  WRONG");
+                    `endif
                 end
 
                 // Online learning updates are counted globally via ol_we pulses.
@@ -1283,6 +1301,10 @@ initial begin
     // Since loading_complete is a reg in DUT, we can write to it.
     dut.hdc_classifier_instance.loading_complete = 1;
     dut.hdc_classifier_instance.load_counter = bit_count;
+    // Backdoor load bypasses the serial capture of online_learning_enable_reg,
+    // so set it explicitly to match the config bit we loaded.
+    dut.hdc_classifier_instance.online_learning_enable_reg = online_learning_enable;
+    $display("[TB] Backdoor OL enable set: %0d", online_learning_enable);
     $display("[TB] Backdoor loading complete. Forced loading_complete=1. Cycles saved: Millions!");
 `else
     // Standard loading completion
@@ -1360,6 +1382,17 @@ initial begin
         $display("  Class %0d: ones=%0d/%0d, checksum=%0d", c, ones_count, HDC_HV_DIM, checksum_val);
     end
     $display("===============================================\n");
+
+    // Snapshot initial class HVs for drift tracking
+    $display("\n=== Capturing Initial Class HVs ===");
+    for (c = 0; c < NUM_CLASSES; c = c + 1) begin
+        for (idx = 0; idx < HDC_HV_DIM; idx = idx + 1) begin
+            initial_class_hv[c][idx] = dut.hdc_classifier_instance.loaded_data_mem[
+                dut.hdc_classifier_instance.HV_START + c * HDC_HV_DIM + idx
+            ];
+        end
+    end
+    $display("==================================\n");
 
     // Reciprocal LUT verification removed - hardware now uses division directly
 
@@ -1513,6 +1546,22 @@ initial begin
             $display("  Predicted as class %d: %d times (%.1f%%)", i, class_predictions[i],
                      (class_predictions[i] * 100.0) / total_predictions);
         end
+    end
+
+    // Class HV drift summary (unique bit flips since load)
+    $display("\nClass HV Drift Summary:");
+    for (c = 0; c < NUM_CLASSES; c = c + 1) begin
+        hv_drift_count[c] = 0;
+        for (idx = 0; idx < HDC_HV_DIM; idx = idx + 1) begin
+            if (initial_class_hv[c][idx] != dut.hdc_classifier_instance.loaded_data_mem[
+                dut.hdc_classifier_instance.HV_START + c * HDC_HV_DIM + idx
+            ]) begin
+                hv_drift_count[c] = hv_drift_count[c] + 1;
+            end
+        end
+        $display("  Class %0d: %0d/%0d bits changed (%.2f%%)",
+                 c, hv_drift_count[c], HDC_HV_DIM,
+                 (hv_drift_count[c] * 100.0) / HDC_HV_DIM);
     end
 
     // Python vs Verilog comparison summary
