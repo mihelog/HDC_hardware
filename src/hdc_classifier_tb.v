@@ -199,11 +199,15 @@ end
 // Online learning update counters (counts actual memory writes)
 always @(posedge clk) begin
     integer ol_i;
+    integer ol_j;
     if (!reset_b) begin
         online_learning_updates <= 0;
         for (ol_i = 0; ol_i < NUM_CLASSES; ol_i = ol_i + 1) begin
             online_learning_updates_by_class[ol_i] <= 0;
             online_learning_updates_by_true_label[ol_i] <= 0;
+            for (ol_j = 0; ol_j < NUM_CLASSES; ol_j = ol_j + 1) begin
+                online_learning_updates_by_true_pred[ol_i][ol_j] <= 0;
+            end
         end
     end else if (loading_complete && dut.hdc_classifier_instance.ol_we) begin
         online_learning_updates <= online_learning_updates + 1;
@@ -212,6 +216,8 @@ always @(posedge clk) begin
         if (ol_label_valid) begin
             online_learning_updates_by_true_label[ol_active_true_label] <=
                 online_learning_updates_by_true_label[ol_active_true_label] + 1;
+            online_learning_updates_by_true_pred[ol_active_true_label][ol_active_pred_class] <=
+                online_learning_updates_by_true_pred[ol_active_true_label][ol_active_pred_class] + 1;
         end
     end
 end
@@ -331,6 +337,7 @@ integer decile_total[0:9];
 integer online_learning_updates = 0;  // Count of online learning bit updates (ol_we pulses)
 integer online_learning_updates_by_class[0:255];
 integer online_learning_updates_by_true_label[0:255];
+integer online_learning_updates_by_true_pred[0:255][0:255];
 integer last_true_label = 0;
 integer last_pred_class = 0;
 reg last_label_valid = 0;
@@ -1508,6 +1515,25 @@ initial begin
             for (i = 0; i < NUM_CLASSES; i = i + 1) begin
                 $display("  Class %0d: %0d (%.1f%%)", i, online_learning_updates_by_true_label[i],
                          (online_learning_updates_by_true_label[i] * 100.0) / online_learning_updates);
+            end
+            $display("Online learning updates by true label vs predicted class:");
+            for (i = 0; i < NUM_CLASSES; i = i + 1) begin
+                integer row_total;
+                row_total = 0;
+                for (j = 0; j < NUM_CLASSES; j = j + 1) begin
+                    row_total = row_total + online_learning_updates_by_true_pred[i][j];
+                end
+                $write("  True %0d:", i);
+                for (j = 0; j < NUM_CLASSES; j = j + 1) begin
+                    if (row_total > 0) begin
+                        $write(" pred%0d=%0d (%.1f%%)", j, online_learning_updates_by_true_pred[i][j],
+                               (online_learning_updates_by_true_pred[i][j] * 100.0) / row_total);
+                    end else begin
+                        $write(" pred%0d=%0d (0.0%%)", j, online_learning_updates_by_true_pred[i][j]);
+                    end
+                    if (j != NUM_CLASSES - 1) $write(",");
+                end
+                $display("");
             end
         end else begin
             $display("Online learning updates by class: none");
