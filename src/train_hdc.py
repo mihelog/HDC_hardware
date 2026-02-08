@@ -1442,6 +1442,7 @@ class HDCClassifier:
         self.encoding_levels = encoding_levels
         self.class_hvs = {}
         self.use_per_feature_thresholds = use_per_feature_thresholds
+        self.class_distance_bias = np.zeros(num_classes, dtype=np.int32)
         
         # Feature statistics for normalization
         self.feature_mean = None
@@ -2227,6 +2228,12 @@ class HDCClassifier:
             for class_id, class_hv in self.class_hvs.items():
                 # Hamming distance
                 dist = np.sum(hv != class_hv)
+                if hasattr(self, 'class_distance_bias'):
+                    dist = dist + int(self.class_distance_bias[class_id])
+                    if dist < 0:
+                        dist = 0
+                    elif dist > self.hv_dim:
+                        dist = self.hv_dim
                 distances.append(dist)
                 if dist < min_dist:
                     min_dist = dist
@@ -2237,6 +2244,50 @@ class HDCClassifier:
             confidences.append(1.0 - min_dist / self.hv_dim)
 
         return np.array(predictions), np.array(confidences)
+
+    def compute_class_distance_bias(self, features, labels):
+        """Compute per-class Hamming distance bias to balance class distances."""
+        if labels is None or len(labels) == 0:
+            print("\nWARNING: No labels provided for distance bias; using zeros.")
+            self.class_distance_bias = np.zeros(self.num_classes, dtype=np.int32)
+            return self.class_distance_bias
+
+        labels_np = labels if isinstance(labels, np.ndarray) else np.array(labels)
+        hvs = np.array([self.encode(feat) for feat in features])
+
+        class_means = []
+        for class_id in range(self.num_classes):
+            mask = labels_np == class_id
+            if not np.any(mask):
+                class_means.append(None)
+                continue
+            dists = np.sum(hvs[mask] != self.class_hvs[class_id], axis=1)
+            class_means.append(float(np.mean(dists)))
+
+        valid_means = [m for m in class_means if m is not None]
+        if not valid_means:
+            print("\nWARNING: No valid class means for distance bias; using zeros.")
+            self.class_distance_bias = np.zeros(self.num_classes, dtype=np.int32)
+            return self.class_distance_bias
+
+        global_mean = float(np.mean(valid_means))
+        biases = []
+        for class_id, mean_val in enumerate(class_means):
+            if mean_val is None:
+                bias = 0
+            else:
+                bias = int(round(global_mean - mean_val))
+            biases.append(bias)
+
+        bias_array = np.array(biases, dtype=np.int32)
+        bias_array = np.clip(bias_array, -self.hv_dim, self.hv_dim)
+        self.class_distance_bias = bias_array
+
+        print("\nClass distance bias (Hamming offset, applied before argmin):")
+        for class_id, bias in enumerate(self.class_distance_bias):
+            print(f"  Class {class_id}: {bias:+d}")
+
+        return self.class_distance_bias
 
     def _lfsr_step(self):
         """16-bit LFSR with taps at positions 15, 13, 12, 10 (matches hardware)"""
@@ -3914,6 +3965,24 @@ def save_for_verilog(cnn, hdc, image_size, num_classes, hv_dim, in_channels=1, p
         f.write(f"`define CONV2_WEIGHT_WIDTH_VH {CONV2_WEIGHT_WIDTH}\n")
         f.write(f"`define FC_WEIGHT_WIDTH_VH {FC_WEIGHT_WIDTH}\n")
         f.write("`define FC_BIAS_WIDTH_VH 8  // FC bias uses 8-bit for precision (2026-02-03)\n")
+
+    # Generate class distance bias function for Hamming calibration
+    bias_values = getattr(hdc, 'class_distance_bias', np.zeros(num_classes, dtype=np.int32))
+    if len(bias_values) != num_classes:
+        bias_values = np.resize(bias_values, num_classes)
+    with open('verilog_params/class_biases.vh', 'w') as f:
+        f.write("// Auto-generated class distance bias function\n")
+        f.write("// Bias is added to Hamming distance before argmin selection\n")
+        f.write("function automatic integer get_class_distance_bias;\n")
+        f.write("  input integer cls;\n")
+        f.write("  begin\n")
+        f.write("    case (cls)\n")
+        for class_id in range(num_classes):
+            f.write(f"      {class_id}: get_class_distance_bias = {int(bias_values[class_id])};\n")
+        f.write("      default: get_class_distance_bias = 0;\n")
+        f.write("    endcase\n")
+        f.write("  end\n")
+        f.write("endfunction\n")
 
     with open('weights_and_hvs.txt', 'w') as f:
         # Write parameters including bit width information
@@ -6549,6 +6618,12 @@ def train_system(dataset_name='quickdraw', num_classes=2, image_size=32,
     # ==================================================================
     # END ADAPTIVE CLASS BALANCING
     # ==================================================================
+
+    # Compute class distance bias to reduce systematic class skew
+    print("\nComputing class distance bias for Hamming distance calibration...")
+    bias_features = train_features_balanced if 'train_features_balanced' in locals() else train_features_for_hdc
+    bias_labels = train_labels_balanced if 'train_labels_balanced' in locals() else train_labels_for_hdc
+    hdc.compute_class_distance_bias(bias_features, bias_labels)
 
     # Save per-image predictions for comparison with Verilog
     print("\nSaving per-image predictions for Verilog comparison...")

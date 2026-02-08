@@ -311,6 +311,7 @@ These files are generated during training/simulation and are not tracked in git:
 - `python_saved_100_predictions.txt` - Python HDC predictions for verification
 - `output` - Comprehensive training/simulation log
 - `cnn_model.pth` - PyTorch model checkpoint
+- `verilog_params/class_biases.vh` - Per-class Hamming distance bias (auto-generated)
 - `hdc_classifier.vcd` - Waveform file (~2GB)
 - `sim.vvp` - Compiled Verilog (Icarus Verilog intermediate)
 
@@ -483,6 +484,7 @@ src/
 │
 ├── verilog_params/               # Auto-generated Verilog parameters
 │   ├── scales.vh                 # Quantization scales
+│   ├── class_biases.vh           # Per-class Hamming distance bias
 │   ├── weight_widths.vh          # Bit width definitions
 │   └── shift_params.vh           # Right-shift parameters
 │
@@ -556,6 +558,7 @@ make python_only DATASET=manufacturing EPOCHS=100 HV_DIM=7000
 - `python_saved_100_predictions.txt` - Python HDC predictions
 - `output` - Detailed training log
 - `cnn_model.pth` - PyTorch model checkpoint
+- `verilog_params/class_biases.vh` - Per-class Hamming distance bias
 
 ### Verilog Simulation Only
 
@@ -1151,7 +1154,7 @@ Generated files:
   ✓ test_labels.txt - Ground truth labels
   ✓ python_saved_100_predictions.txt - Python reference predictions
   ✓ cnn_model.pth - PyTorch checkpoint
-  ✓ verilog_params/*.vh - Verilog parameter files
+  ✓ verilog_params/*.vh - Verilog parameter files (shift, LUT, class bias, widths)
 
 Verilog parameter generation complete:
   NORMALIZATION STATUS: **DISABLED**
@@ -1883,6 +1886,11 @@ end
 // Confidence lookup
 confidence = confidence_lut[min_distance];
 ```
+
+**Class distance bias** (auto‑generated):
+- Before argmin, each class distance is adjusted by a per‑class bias computed from training data.
+- This corrects systematic skew (e.g., one class consistently having smaller distances).
+- Bias values are generated into `verilog_params/class_biases.vh`.
 
 **Confidence**: Mapped from distance using lookup table
 - Small distance → High confidence

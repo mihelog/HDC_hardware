@@ -1,6 +1,6 @@
 # Current State - HDC System Investigation (Feb 4, 2026)
 
-**Date:** 2026-02-06
+**Date:** 2026-02-08
 **Status:** ✅ **Verilog verified correct** | ✅ **96.5% accuracy on saved 200-image set** | ⚠️ **Full 2000-image set still class-skewed** | ✅ **6-bit FC weights validated (default)** | ✅ **FC clamp fix applied**
 
 ## Executive Summary
@@ -13,6 +13,7 @@
 5. 🔧 **Adaptive per-feature thresholds implemented** - Class-balanced percentile search (pending full-set validation)
 6. 🧪 **Online learning counter fixed in TB** - now counts actual `ol_we` writes (rerun pending)
 7. ✅ **High-confidence online learning gate added** - optional `ONLINE_LEARNING_IF_CONFIDENCE_HIGH` (>=14/15) for drift control
+8. ✅ **Class distance bias calibration added** - per-class Hamming distance bias computed from training to reduce skew
 
 **Previous Configuration (38 KB, 73-79% accuracy)** - Failed:
 - NUM_FEATURES=64, HV_DIM=5000, FC_WEIGHT_WIDTH=4, FC_BIAS_WIDTH=8
@@ -23,6 +24,7 @@
 **Current Configuration (~55 KB, verified 96.5% accuracy)** - Implemented ✅:
 - NUM_FEATURES=64, HV_DIM=5000, **FC_WEIGHT_WIDTH=6**, FC_BIAS_WIDTH=8
 - ONLINE_LEARNING_IF_CONFIDENCE_HIGH=0 (legacy 8/15 threshold; set to 1 for high-confidence updates >=14/15)
+- CLASS_DISTANCE_BIAS: enabled (auto-generated per-class Hamming offsets from training data)
 - Observed: 96.5% on saved 200-image set (Class 0: 97%, Class 1: 96%)
 - Trade-off: +17 KB memory vs 4-bit, with strong class discrimination
 - **Status**: Verified on saved set; full 2000-image set rerun pending
