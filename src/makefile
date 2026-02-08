@@ -161,7 +161,7 @@ HDC_EPOCHS = 20  # Epochs for learned projection training
 QAT_EPOCHS = 0  # Number of epochs for QAT (0 = auto mode: float training first 20 epochs, then QAT)
 QAT_FUSE_BN ?= 0  # Fuse batch norm into conv weights when enabling QAT (0=disabled, 1=enabled)
 ONLINE_LEARNING ?= 1  # Enable online learning during test evaluation (default: enabled)
-ONLINE_LEARNING_IF_CONFIDENCE_HIGH ?= 0  # Only update when confidence is high (~>=90%, no division)
+ONLINE_LEARNING_IF_CONFIDENCE_HIGH ?= 0  # Only update when confidence is high (~>=90%) AND margin gate (no division)
 USE_PER_FEATURE_THRESHOLDS ?= 1  # Use per-feature HDC thresholds in Python (0=global thresholds)
 SEED ?= 42  # Random seed for reproducibility (can be changed for variety)
 DEBUG_PIPELINE ?= 0  # Enable extra pipeline diagnostics in Python
@@ -673,7 +673,7 @@ help:
 	@echo "  EPOCHS          - Training epochs (default: 75)"
 	@echo "  BATCH_SIZE      - Batch size (default: 64)"
 	@echo "  ONLINE_LEARNING - Enable online learning (0=disabled, 1=enabled, default: 1)"
-	@echo "  ONLINE_LEARNING_IF_CONFIDENCE_HIGH - Only update when confidence is high (~>=90%, default: 0)"
+	@echo "  ONLINE_LEARNING_IF_CONFIDENCE_HIGH - Only update when confidence is high (~>=90%) AND margin gate (default: 0)"
 	@echo "  USE_PER_FEATURE_THRESHOLDS - Use per-feature HDC thresholds in Python/Verilog (0=global, 1=per-feature)"
 	@echo "  QAT_FUSE_BN     - Fuse batch norm when enabling QAT (0=disabled, 1=enabled, default: 0)"
 	@echo "  QUIET_RESULTS   - Reduce per-image testbench output (0/1, default: 0)"

@@ -100,7 +100,7 @@ module hdc_classifier #(
     //==================================================================================
     parameter HDC_PROJ_WEIGHT_WIDTH = 4,   // Projection weight bit width (4-bit signed)
     parameter ENABLE_ONLINE_LEARNING = 1,  // Enable online learning (changed from 0 to 1, 2026-02-01)
-    parameter ONLINE_LEARNING_IF_CONFIDENCE_HIGH = 0, // 1=only update at high confidence (~>=90%), 0=legacy threshold
+    parameter ONLINE_LEARNING_IF_CONFIDENCE_HIGH = 0, // 1=only update at high confidence (~>=90%) AND margin gate, 0=legacy threshold
     parameter ENCODING_LEVELS = 4,         // HDC encoding levels (increased from 3 to 4, 2026-02-01)
     parameter USE_ADAPTIVE_THRESHOLDS = 0, // 1=per-image min/max thresholds, 0=use thresholds from file (matches Python training)
     parameter USE_PER_FEATURE_THRESHOLDS = 1, // Use per-feature thresholds (changed from 0 to 1, 2026-02-01)
@@ -343,6 +343,11 @@ localparam [HDC_CONF_WIDTH-1:0] ONLINE_CONFIDENCE_HIGH_THRESH =
 localparam [HDC_CONF_WIDTH-1:0] ONLINE_CONFIDENCE_BASE_THRESH = HDC_CONF_WIDTH'(8);
 localparam [HDC_CONF_WIDTH-1:0] ONLINE_CONFIDENCE_UPDATE_THRESH =
     (ONLINE_LEARNING_IF_CONFIDENCE_HIGH != 0) ? ONLINE_CONFIDENCE_HIGH_THRESH : ONLINE_CONFIDENCE_BASE_THRESH;
+// Online learning margin gating (only used when ONLINE_LEARNING_IF_CONFIDENCE_HIGH != 0)
+// - Require 2nd-best distance minus best distance >= HV_DIM >> ONLINE_MARGIN_SHIFT (no division)
+localparam integer ONLINE_MARGIN_SHIFT = 5; // ~3.1% of HV_DIM
+localparam integer ONLINE_MARGIN_THRESH_RAW = (HDC_HV_DIM >> ONLINE_MARGIN_SHIFT);
+localparam integer ONLINE_MARGIN_THRESH = (ONLINE_MARGIN_THRESH_RAW == 0) ? 1 : ONLINE_MARGIN_THRESH_RAW;
 
 //======================================================================================
 // ACCESSOR FUNCTIONS (Extract configuration data from loaded_data_mem)
@@ -689,6 +694,7 @@ localparam [HDC_CONF_WIDTH-1:0] ONLINE_CONFIDENCE_UPDATE_THRESH =
 // Classification Signals
     reg [2:0] class_state;
     reg valid_s17;
+    reg [15:0] distance_margin;
 
 // Online Learning Internal Signals
     reg [15:0] lfsr;
@@ -1560,10 +1566,16 @@ localparam [HDC_CONF_WIDTH-1:0] ONLINE_CONFIDENCE_UPDATE_THRESH =
     always @(posedge clk or negedge reset_b) begin
         integer i;
         integer min_d_int;
+        integer second_min_int;
         integer adj_d;
         reg [15:0] min_d;
+        reg [15:0] margin_d;
         reg [CLASS_WIDTH-1:0] p_cls;
-        if (!reset_b) begin valid_s17<=0; class_state<=0; end
+        if (!reset_b) begin
+            valid_s17<=0;
+            class_state<=0;
+            distance_margin<=0;
+        end
         else begin
             if (!valid_s16 && class_state==1) begin // Falling edge of valid_s16
                  //==========================================================================
@@ -1574,6 +1586,7 @@ localparam [HDC_CONF_WIDTH-1:0] ONLINE_CONFIDENCE_UPDATE_THRESH =
                  if (min_d_int < 0) min_d_int = 0;
                  else if (min_d_int > HDC_HV_DIM) min_d_int = HDC_HV_DIM;
                  min_d = min_d_int[15:0];
+                 second_min_int = HDC_HV_DIM;
                  p_cls = 0;
                  `ifdef DEBUG_HDC
                  $display("DEBUG_CLASS: Init min_d=%d, p_cls=0", min_d);
@@ -1591,14 +1604,22 @@ localparam [HDC_CONF_WIDTH-1:0] ONLINE_CONFIDENCE_UPDATE_THRESH =
                      if (adj_d < 0) adj_d = 0;
                      else if (adj_d > HDC_HV_DIM) adj_d = HDC_HV_DIM;
                      if (adj_d < min_d_int) begin
+                         second_min_int = min_d_int;
                          min_d_int = adj_d; min_d = min_d_int[15:0]; p_cls = CLASS_WIDTH'(i);
                          `ifdef DEBUG_HDC
                          $display("DEBUG_CLASS: New min_d=%d, p_cls=%d", min_d, p_cls);
                          `endif
+                     end else if (adj_d < second_min_int) begin
+                         second_min_int = adj_d;
                      end
                  end
+                 if (NUM_CLASSES == 1) second_min_int = min_d_int;
+                 if (second_min_int < 0) second_min_int = 0;
+                 else if (second_min_int > HDC_HV_DIM) second_min_int = HDC_HV_DIM;
+                 margin_d = (second_min_int > min_d_int) ? (second_min_int - min_d_int) : 0;
                  predicted_class <= p_cls;
                  confidence <= get_conf(min_d);
+                 distance_margin <= margin_d;
                  valid_s17 <= 1;
                  class_state <= 0; 
             end else if (valid_s16) class_state <= 1;
@@ -1616,7 +1637,8 @@ localparam [HDC_CONF_WIDTH-1:0] ONLINE_CONFIDENCE_UPDATE_THRESH =
         else if (ENABLE_ONLINE_LEARNING) begin
             case(ol_state)
                 0: if (valid_s17 && online_learning_enable_reg && loading_complete &&
-                       confidence >= ONLINE_CONFIDENCE_UPDATE_THRESH) begin
+                       confidence >= ONLINE_CONFIDENCE_UPDATE_THRESH &&
+                       ((ONLINE_LEARNING_IF_CONFIDENCE_HIGH == 0) || (distance_margin >= ONLINE_MARGIN_THRESH))) begin
                      ol_state<=1; ol_idx<=0; ol_we<=0;
                    end
                 1: begin

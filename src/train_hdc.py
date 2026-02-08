@@ -23,6 +23,7 @@ import h5py
 HDC_CONF_WIDTH = 4
 ONLINE_LEARNING_BASE_CONF_INT = 8  # Legacy threshold: confidence >= 8/15
 ONLINE_LEARNING_HIGH_LSB_BITS = 1  # High-confidence threshold: all 1s except 1 LSB (e.g., 14/15)
+ONLINE_LEARNING_MARGIN_SHIFT = 5   # High-confidence mode also requires margin >= HV_DIM >> 5 (~3.1%)
 
 def get_online_learning_confidence_threshold_int(high_only):
     max_conf = (1 << HDC_CONF_WIDTH) - 1
@@ -33,6 +34,12 @@ def get_online_learning_confidence_threshold_int(high_only):
 def get_online_learning_min_confidence(high_only):
     max_conf = (1 << HDC_CONF_WIDTH) - 1
     return get_online_learning_confidence_threshold_int(high_only) / max_conf
+
+def get_online_learning_margin_threshold_int(hv_dim, high_only):
+    if not high_only:
+        return 0
+    thresh = int(hv_dim >> ONLINE_LEARNING_MARGIN_SHIFT)
+    return max(1, thresh)
 
 class SimpleCNN(nn.Module):
     def __init__(self, num_features=64, input_size=32, in_channels=1):
@@ -1470,6 +1477,7 @@ class HDCClassifier:
         # Online learning parameters (matching hardware implementation)
         self.online_learning_if_confidence_high = bool(online_learning_if_confidence_high)
         self.min_confidence = get_online_learning_min_confidence(self.online_learning_if_confidence_high)
+        self.min_margin = get_online_learning_margin_threshold_int(self.hv_dim, self.online_learning_if_confidence_high)
         self.learning_rate_base = 64
         self.lfsr_state = 0xACE1  # LFSR seed (matches hardware)
         self.class_hvs_accum = {}  # Floating-point accumulators for online learning
@@ -2207,24 +2215,18 @@ class HDCClassifier:
         print(f"  Encoding levels: {self.encoding_levels}")
         print(f"  Expected improvement: Better magnitude preservation")
     
-    # Predicts the class labels and confidence scores for a batch of features.
-    # Returns: A tuple (predictions, confidences).
-    #   predictions: Array of predicted class indices.
-    #   confidences: Array of confidence scores (0.0 to 1.0).
-    # Args:
-    #   features: Batch of input features (2D numpy array).
-    #   normalize: Whether to normalize features before encoding (default False).
-    def predict(self, features, normalize=False):
-        """Predict class with optional feature normalization for test data"""
+    def predict_with_margins(self, features, normalize=False):
+        """Predict class and return confidence plus margin (2nd-best - best distance)."""
         hvs = np.array([self.encode(feat, normalize=normalize) for feat in features])
         predictions = []
         confidences = []
-        
+        margins = []
+
         for hv in hvs:
-            min_dist = float('inf')
+            min_dist = None
+            second_min = None
             pred_class = 0
-            distances = []
-            
+
             for class_id, class_hv in self.class_hvs.items():
                 # Hamming distance
                 dist = np.sum(hv != class_hv)
@@ -2234,16 +2236,36 @@ class HDCClassifier:
                         dist = 0
                     elif dist > self.hv_dim:
                         dist = self.hv_dim
-                distances.append(dist)
-                if dist < min_dist:
+
+                if min_dist is None or dist < min_dist:
+                    second_min = min_dist
                     min_dist = dist
                     pred_class = class_id
-                    
-            predictions.append(pred_class)
-            # Confidence as inverse of normalized distance
-            confidences.append(1.0 - min_dist / self.hv_dim)
+                elif second_min is None or dist < second_min:
+                    second_min = dist
 
-        return np.array(predictions), np.array(confidences)
+            if min_dist is None:
+                min_dist = 0
+            if second_min is None:
+                second_min = min_dist
+
+            predictions.append(pred_class)
+            confidences.append(1.0 - min_dist / self.hv_dim)
+            margins.append(max(0, int(second_min - min_dist)))
+
+        return np.array(predictions), np.array(confidences), np.array(margins)
+
+    # Predicts the class labels and confidence scores for a batch of features.
+    # Returns: A tuple (predictions, confidences).
+    #   predictions: Array of predicted class indices.
+    #   confidences: Array of confidence scores (0.0 to 1.0).
+    # Args:
+    #   features: Batch of input features (2D numpy array).
+    #   normalize: Whether to normalize features before encoding (default False).
+    def predict(self, features, normalize=False):
+        """Predict class with optional feature normalization for test data"""
+        predictions, confidences, _ = self.predict_with_margins(features, normalize=normalize)
+        return predictions, confidences
 
     def compute_class_distance_bias(self, features, labels):
         """Compute per-class Hamming distance bias to balance class distances."""
@@ -2308,8 +2330,8 @@ class HDCClassifier:
         Returns:
             predictions, confidences for tracking accuracy
         """
-        # Get predictions and confidences
-        predictions, confidences = self.predict(features)
+        # Get predictions, confidences, and margins
+        predictions, confidences, margins = self.predict_with_margins(features)
 
         # Determine which labels to use for updates
         if labels is not None:
@@ -2336,10 +2358,11 @@ class HDCClassifier:
         for i in range(features.shape[0]):
             label = int(update_labels[i])
             confidence = confidences[i]
+            margin = margins[i]
             query_hv = hvs[i]
 
-            # Only update if confidence >= MIN_CONFIDENCE (avoid drift)
-            if confidence >= self.min_confidence:
+            # Only update if confidence >= MIN_CONFIDENCE and margin >= MIN_MARGIN (avoid drift)
+            if confidence >= self.min_confidence and margin >= self.min_margin:
                 # Scale learning rate by confidence (high confidence = faster learning)
                 # Normalize confidence to 0-15 scale, then scale
                 confidence_scaled = int(confidence * 15)
@@ -2606,6 +2629,7 @@ class LearnedHDCClassifier(nn.Module):
 
             # Online learning parameters (matching Verilog)
             self.min_confidence = get_online_learning_min_confidence(self.online_learning_if_confidence_high)
+            self.min_margin = get_online_learning_margin_threshold_int(self.hv_dim, self.online_learning_if_confidence_high)
             self.learning_rate_base = 64  # Base learning rate
 
     def _lfsr_step(self):
@@ -2629,8 +2653,8 @@ class LearnedHDCClassifier(nn.Module):
             predictions, confidences for tracking accuracy
         """
         with torch.no_grad():
-            # Get predictions and confidences
-            predictions, confidences = self.predict(features)
+            # Get predictions, confidences, and margins
+            predictions, confidences, margins = self.predict_with_margins(features)
 
             # Determine which labels to use for updates
             if labels is not None:
@@ -2650,10 +2674,11 @@ class LearnedHDCClassifier(nn.Module):
             for i in range(features.shape[0]):
                 label = int(update_labels[i])
                 confidence = confidences[i]
+                margin = margins[i]
                 query_hv = hvs[i]
 
-                # Only update if confidence >= MIN_CONFIDENCE (avoid drift)
-                if confidence >= self.min_confidence:
+                # Only update if confidence >= MIN_CONFIDENCE and margin >= MIN_MARGIN (avoid drift)
+                if confidence >= self.min_confidence and margin >= self.min_margin:
                     # Scale learning rate by confidence (high confidence = faster learning)
                     # learning_threshold = (confidence * LEARNING_RATE_BASE) << 8
                     # In Python: normalize confidence to 0-15 scale, then scale
@@ -2682,30 +2707,46 @@ class LearnedHDCClassifier(nn.Module):
 
             return predictions, confidences
 
-    def predict(self, features):
-        """Predict classes using Hamming distance"""
+    def predict_with_margins(self, features):
+        """Predict classes using Hamming distance and return margin (2nd-best - best)."""
         with torch.no_grad():
             hvs = self.forward(features)
             batch_size = hvs.shape[0]
-            
+
             predictions = []
             confidences = []
-            
+            margins = []
+
             for i in range(batch_size):
-                min_dist = float('inf')
+                min_dist = None
+                second_min = None
                 pred_class = 0
-                
+
                 for class_id in range(self.num_classes):
                     # Hamming distance
                     dist = torch.sum(hvs[i] != self.class_hvs[class_id]).item()
-                    if dist < min_dist:
+                    if min_dist is None or dist < min_dist:
+                        second_min = min_dist
                         min_dist = dist
                         pred_class = class_id
-                
+                    elif second_min is None or dist < second_min:
+                        second_min = dist
+
+                if min_dist is None:
+                    min_dist = 0
+                if second_min is None:
+                    second_min = min_dist
+
                 predictions.append(pred_class)
                 confidences.append(1.0 - min_dist / self.hv_dim)
-            
-            return np.array(predictions), np.array(confidences)
+                margins.append(max(0, int(second_min - min_dist)))
+
+            return np.array(predictions), np.array(confidences), np.array(margins)
+
+    def predict(self, features):
+        """Predict classes using Hamming distance"""
+        predictions, confidences, _ = self.predict_with_margins(features)
+        return predictions, confidences
     
     def to_numpy_hdc(self):
         """Convert to numpy-based HDC for compatibility"""
@@ -5076,6 +5117,10 @@ def save_test_images_and_verify(test_dataset, test_loader, cnn, hdc, device,
         conf_pct = 100.0 * conf_thresh / conf_max
         mode_label = "HIGH" if online_learning_if_confidence_high else "LEGACY"
         print(f"  Confidence gate ({mode_label}): >= {conf_thresh}/{conf_max} (~{conf_pct:.1f}%)")
+        if online_learning_if_confidence_high:
+            margin_thresh = get_online_learning_margin_threshold_int(hdc.hv_dim, True)
+            margin_pct = 100.0 * margin_thresh / max(1, hdc.hv_dim)
+            print(f"  Margin gate (HIGH): >= {margin_thresh} (~{margin_pct:.1f}% of HV_DIM)")
 
         # Save original class hypervectors before online learning (copy dictionary of numpy arrays)
         original_class_hvs = {class_id: hv.copy() for class_id, hv in hdc.class_hvs.items()}
@@ -6973,7 +7018,7 @@ For more information, see README.md or how_to_run.txt
     parser.add_argument('--disable_online_learning', dest='enable_online_learning', action='store_false',
                        help='Disable online learning during testing. Default: False (online learning enabled)')
     parser.add_argument('--online_learning_if_confidence_high', type=int, default=0,
-                       help='Only update class hypervectors when confidence is high (~>=14/15). Default: 0 (use legacy 8/15 threshold).')
+                       help='Only update class hypervectors when confidence is high (~>=14/15) AND margin >= HV_DIM>>5. Default: 0 (use legacy 8/15 threshold).')
     parser.add_argument('--use_per_feature_thresholds', dest='use_per_feature_thresholds', action='store_true', default=True,
                        help='Use per-feature HDC thresholds (Python only). Default: True.')
     parser.add_argument('--disable_per_feature_thresholds', dest='use_per_feature_thresholds', action='store_false',
