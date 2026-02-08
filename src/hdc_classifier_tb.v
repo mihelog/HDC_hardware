@@ -179,12 +179,41 @@ always @(posedge clk) begin
         cycle_count <= cycle_count + 1;
 end
 
-// Online learning update counter (counts actual memory writes)
+// Track which true label is associated with the current online learning transaction
 always @(posedge clk) begin
-    if (!reset_b)
+    if (!reset_b) begin
+        ol_label_valid <= 0;
+        ol_active_true_label <= 0;
+        ol_active_pred_class <= 0;
+    end else begin
+        if (dut.hdc_classifier_instance.ol_state == 0) begin
+            ol_label_valid <= 0;
+        end else if (!ol_label_valid && last_label_valid) begin
+            ol_active_true_label <= last_true_label;
+            ol_active_pred_class <= last_pred_class;
+            ol_label_valid <= 1;
+        end
+    end
+end
+
+// Online learning update counters (counts actual memory writes)
+always @(posedge clk) begin
+    integer ol_i;
+    if (!reset_b) begin
         online_learning_updates <= 0;
-    else if (loading_complete && dut.hdc_classifier_instance.ol_we)
+        for (ol_i = 0; ol_i < NUM_CLASSES; ol_i = ol_i + 1) begin
+            online_learning_updates_by_class[ol_i] <= 0;
+            online_learning_updates_by_true_label[ol_i] <= 0;
+        end
+    end else if (loading_complete && dut.hdc_classifier_instance.ol_we) begin
         online_learning_updates <= online_learning_updates + 1;
+        online_learning_updates_by_class[predicted_class] <=
+            online_learning_updates_by_class[predicted_class] + 1;
+        if (ol_label_valid) begin
+            online_learning_updates_by_true_label[ol_active_true_label] <=
+                online_learning_updates_by_true_label[ol_active_true_label] + 1;
+        end
+    end
 end
 
 //======================================================================================
@@ -300,6 +329,14 @@ integer class_total[0:255];
 integer decile_correct[0:9];
 integer decile_total[0:9];
 integer online_learning_updates = 0;  // Count of online learning bit updates (ol_we pulses)
+integer online_learning_updates_by_class[0:255];
+integer online_learning_updates_by_true_label[0:255];
+integer last_true_label = 0;
+integer last_pred_class = 0;
+reg last_label_valid = 0;
+integer ol_active_true_label = 0;
+integer ol_active_pred_class = 0;
+reg ol_label_valid = 0;
 integer class_predictions[0:255];
 
 // Dataset name for display
@@ -773,6 +810,10 @@ task process_image;
 
                 // Calculate latency (input to output delay in clock cycles)
                 image_latency = image_end_cycle[img_idx] - image_start_cycle[img_idx];
+                // Record last label/prediction for online learning attribution
+                last_true_label = true_label;
+                last_pred_class = pred_class;
+                last_label_valid = 1;
 
                 // Update statistics
                 total_predictions = total_predictions + 1;
@@ -1457,6 +1498,20 @@ initial begin
     end
     `ifdef ENABLE_ONLINE_LEARNING_ARG
         $display("\nOnline learning updates: %0d", online_learning_updates);
+        if (online_learning_updates > 0) begin
+            $display("Online learning updates by class:");
+            for (i = 0; i < NUM_CLASSES; i = i + 1) begin
+                $display("  Class %0d: %0d (%.1f%%)", i, online_learning_updates_by_class[i],
+                         (online_learning_updates_by_class[i] * 100.0) / online_learning_updates);
+            end
+            $display("Online learning updates by true label:");
+            for (i = 0; i < NUM_CLASSES; i = i + 1) begin
+                $display("  Class %0d: %0d (%.1f%%)", i, online_learning_updates_by_true_label[i],
+                         (online_learning_updates_by_true_label[i] * 100.0) / online_learning_updates);
+            end
+        end else begin
+            $display("Online learning updates by class: none");
+        end
     `endif
 
     // Latency statistics
