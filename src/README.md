@@ -107,7 +107,7 @@ To restore high-accuracy configuration (96.5%, 136 KB), set NUM_FEATURES=128 and
 **Accuracy Improvement Parameters:**
 1. HV_DIM: 5000 → 10000 (more dimensions for better discrimination)
 2. ENCODING_LEVELS: 3 → 4 (finer feature granularity)
-3. ENABLE_ONLINE_LEARNING: 0 → 1 (adaptive class hypervectors)
+3. ENABLE_ONLINE_LEARNING: 0 → 1 (adaptive class hypervectors; default later reverted to 0 due to accuracy drop on some datasets)
 4. USE_PER_FEATURE_THRESHOLDS: 0 → 1 (individualized thresholds)
 
 **2026-02-02 Updates**:
@@ -678,7 +678,7 @@ make manufacturing_verilog_only
 #### Advanced Training
 - `TEST_SPLIT=0.2` - Test set fraction
 - `NUM_TEST_IMAGES=200` - Images saved for Verilog
-- `ONLINE_LEARNING=1` - Enable online learning (0/1)
+- `ONLINE_LEARNING=0` - Enable online learning (0/1)
 - `ONLINE_LEARNING_IF_CONFIDENCE_HIGH=0` - Only update when confidence is high (~>=90%) and margin is large (0/1)
 - `ARITHMETIC_MODE=integer` - integer or float
 - `QAT_FUSE_BN=0` - Fuse batch norm weights when enabling QAT (0/1)
@@ -1594,7 +1594,7 @@ module hdc_classifier #(
 
     // HDC parameters
     parameter HDC_PROJ_WEIGHT_WIDTH = 4,
-    parameter ENABLE_ONLINE_LEARNING = 1,
+    parameter ENABLE_ONLINE_LEARNING = 0,
     parameter ENCODING_LEVELS = 4,
 
     // Parallelism parameters
@@ -1943,8 +1943,10 @@ end
   - 1 = Online learning enabled at runtime
   - Can be changed by reloading configuration (no need to resynthesize)
 
-**Status**: Enabled by default for manufacturing (ENABLE_ONLINE_LEARNING=1, config bit set by configuration stream)
-- Online learning can be disabled at runtime by setting the config bit to 0
+**Status**: Disabled by default (ENABLE_ONLINE_LEARNING=0, config bit set by configuration stream)
+- Online learning can be enabled at runtime by setting the config bit to 1
+
+**Warning**: On some datasets, online learning can reduce accuracy (especially if predictions are biased). Enable only after validating per-class accuracy.
 
 ### Verilog Parameters Reference
 
@@ -1988,7 +1990,7 @@ Shifts prevent overflow and normalize dynamic range.
 Higher parallelism = faster but larger area.
 
 #### Feature Flags
-- `ENABLE_ONLINE_LEARNING` (default: 1) - Enable/disable online learning logic synthesis
+- `ENABLE_ONLINE_LEARNING` (default: 0) - Enable/disable online learning logic synthesis
   - When 0: Online learning logic completely removed (saves area)
   - When 1: Online learning logic included; runtime control via config bit
 - `ONLINE_LEARNING_IF_CONFIDENCE_HIGH` (default: 0) - Only update when confidence is high (~>=14/15) and margin >= HV_DIM >> 5
@@ -2399,7 +2401,7 @@ The `train_hdc.py` script accepts the following arguments (parsed in `train_syst
 
 #### Mode Arguments
 - `--arithmetic_mode` - integer or float (default: integer)
-- `--enable_online_learning` - Enable online learning (default: True)
+- `--enable_online_learning` - Enable online learning (default: False)
 - `--disable_online_learning` - Disable online learning (default: False)
 - `--online_learning_if_confidence_high` - Only update when confidence is high (~>=14/15) and margin >= HV_DIM >> 5 (default: 0)
 - `--use_per_feature_thresholds` - Enable per-feature thresholds (default: True)
@@ -2453,7 +2455,7 @@ USE_LFSR_PROJECTION ?= 0      # 1 = on-the-fly LFSR projection (78% memory reduc
 ```makefile
 TEST_SPLIT ?= 0.2             # Test set fraction
 NUM_TEST_IMAGES ?= 200        # Images saved for Verilog
-ONLINE_LEARNING ?= 1          # Enable online learning
+ONLINE_LEARNING ?= 0          # Enable online learning
 ONLINE_LEARNING_IF_CONFIDENCE_HIGH ?= 0  # Only update when confidence is high (~>=90%) and margin gate
 ARITHMETIC_MODE ?= integer    # Integer arithmetic mode
 ```

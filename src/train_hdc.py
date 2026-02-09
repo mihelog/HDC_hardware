@@ -5385,7 +5385,7 @@ def train_system(dataset_name='quickdraw', num_classes=2, image_size=32,
                  hv_dim=5000, test_split=0.2, epochs=75, batch_size=64,
                  samples_per_class=5000, pixel_width=8, encoding_levels=4, qat_epochs=0,
                  arithmetic_mode='integer', test_different_images_in_verilog=False,
-                 enable_online_learning=True, online_learning_if_confidence_high=0,
+                 enable_online_learning=False, online_learning_if_confidence_high=0,
                  use_per_feature_thresholds=True,
                  unlabeled=False, data_dirs=None, num_clusters=10, quantize_bits=8,
                  proj_weight_width=4, random_seed=42, num_test_images=200,
@@ -7012,11 +7012,11 @@ For more information, see README.md or how_to_run.txt
                        help='Enable extra pipeline diagnostics (layer-wise ranges/zeros and per-class feature stats). Default: False')
     parser.add_argument('--debug_samples', type=int, default=2,
                        help='Number of images to dump detailed pipeline diagnostics when --debug_pipeline is enabled. Default: 2')
-    parser.add_argument('--enable_online_learning', dest='enable_online_learning', action='store_true', default=True,
-                       help='Enable online learning during testing (updates class hypervectors). Default: True. Experimental feature '
+    parser.add_argument('--enable_online_learning', dest='enable_online_learning', action='store_true', default=False,
+                       help='Enable online learning during testing (updates class hypervectors). Default: False. Experimental feature '
                             'for adaptive classification.')
     parser.add_argument('--disable_online_learning', dest='enable_online_learning', action='store_false',
-                       help='Disable online learning during testing. Default: False (online learning enabled)')
+                       help='Disable online learning during testing. Default: False (online learning disabled)')
     parser.add_argument('--online_learning_if_confidence_high', type=int, default=0,
                        help='Only update class hypervectors when confidence is high (~>=14/15) AND margin >= HV_DIM>>5. Default: 0 (use legacy 8/15 threshold).')
     parser.add_argument('--use_per_feature_thresholds', dest='use_per_feature_thresholds', action='store_true', default=True,

@@ -235,7 +235,7 @@ reg write_enable = 0;                                  // Write enable for confi
 
 // Online learning control - set from Makefile ONLINE_LEARNING parameters
 `ifndef ENABLE_ONLINE_LEARNING_ARG
-    `define ENABLE_ONLINE_LEARNING_ARG 1
+    `define ENABLE_ONLINE_LEARNING_ARG 0
 `endif
 reg online_learning_enable = `ENABLE_ONLINE_LEARNING_ARG; // Enable online learning (default: OFF)
 `ifndef ONLINE_LEARNING_IF_CONFIDENCE_HIGH_ARG

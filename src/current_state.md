@@ -13,6 +13,7 @@
 5. 🔧 **Adaptive per-feature thresholds implemented** - Class-balanced percentile search (pending full-set validation)
 6. 🧪 **Online learning counter fixed in TB** - now counts actual `ol_we` writes (rerun pending)
 7. ✅ **High-confidence online learning gate added** - optional `ONLINE_LEARNING_IF_CONFIDENCE_HIGH` (>=14/15 **and** margin >= HV_DIM>>5) for drift control
+8. ⚠️ **Online learning default disabled** - set `ONLINE_LEARNING=1` only after validating per-class accuracy (can reduce accuracy on some datasets)
 8. ✅ **Class distance bias calibration added** - per-class Hamming distance bias computed from training to reduce skew
 
 **Previous Configuration (38 KB, 73-79% accuracy)** - Failed:
@@ -23,6 +24,7 @@
 
 **Current Configuration (~55 KB, verified 96.5% accuracy)** - Implemented ✅:
 - NUM_FEATURES=64, HV_DIM=5000, **FC_WEIGHT_WIDTH=6**, FC_BIAS_WIDTH=8
+- ONLINE_LEARNING=0 (default disabled; enable only after per-class validation)
 - ONLINE_LEARNING_IF_CONFIDENCE_HIGH=0 (legacy 8/15 threshold; set to 1 for high-confidence updates >=14/15 **and** margin >= HV_DIM>>5)
 - CLASS_DISTANCE_BIAS: enabled (auto-generated per-class Hamming offsets from training data)
 - Observed: 96.5% on saved 200-image set (Class 0: 97%, Class 1: 96%)

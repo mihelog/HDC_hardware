@@ -58,7 +58,7 @@ module hdc_top #(
     parameter HDC_HV_DIM = 5000,                     // Hypervector dimension (1000-10000)
     parameter HDC_CONF_WIDTH = 4,                    // Confidence bits (4 = 0-15 range)
     parameter CONFIDENCE_LUT_SIZE = 5000,            // Confidence LUT entries (match HV_DIM)
-    parameter ENABLE_ONLINE_LEARNING = 1,            // Enable online learning (0=off, 1=on)
+    parameter ENABLE_ONLINE_LEARNING = 0,            // Enable online learning (0=off, 1=on)
                                                      // This parameter enables OL logic synthesis
                                                      // Actual OL enable controlled by config bit
     parameter ONLINE_LEARNING_IF_CONFIDENCE_HIGH = 0, // 1=only update at high confidence (~>=90%) AND margin gate

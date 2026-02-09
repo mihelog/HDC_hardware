@@ -99,7 +99,7 @@ module hdc_classifier #(
     // HDC PARAMETERS
     //==================================================================================
     parameter HDC_PROJ_WEIGHT_WIDTH = 4,   // Projection weight bit width (4-bit signed)
-    parameter ENABLE_ONLINE_LEARNING = 1,  // Enable online learning (changed from 0 to 1, 2026-02-01)
+    parameter ENABLE_ONLINE_LEARNING = 0,  // Enable online learning (default: 0)
     parameter ONLINE_LEARNING_IF_CONFIDENCE_HIGH = 0, // 1=only update at high confidence (~>=90%) AND margin gate, 0=legacy threshold
     parameter ENCODING_LEVELS = 4,         // HDC encoding levels (increased from 3 to 4, 2026-02-01)
     parameter USE_ADAPTIVE_THRESHOLDS = 0, // 1=per-image min/max thresholds, 0=use thresholds from file (matches Python training)
